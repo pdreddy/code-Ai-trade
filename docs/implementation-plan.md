@@ -430,7 +430,7 @@ Testing:
 
 Objectives:
 
-- Add API discovery endpoints, analytics API, CI/CD, production runbook, security baseline, and observability guidance.
+- Add API discovery endpoints, analytics API, execution/risk persistence adapters, CI/CD, production runbook, security baseline, and observability guidance.
 - Keep Docker Compose and Render deployment flows aligned with renamed platform configuration.
 - Define operational runbooks for deployment, health checks, backups, and future data/trading workflows.
 
@@ -440,11 +440,14 @@ Files:
 - `docs/operations/production-hardening.md`.
 - `backend/app/api/v1/capabilities.py`.
 - `backend/app/api/v1/analytics.py`.
+- `backend/app/infrastructure/repositories/execution.py`.
+- `backend/alembic/versions/0002_execution_and_risk_audit.py`.
 - Render, Docker Compose, and configuration files renamed away from prior project branding.
 
 Architecture:
 
-- API endpoints expose readiness/capability state without fabricating trading data.
+- API endpoints expose readiness/capability state and caller-supplied analytics without fabricating trading data.
+- Paper orders, paper trades, and risk decisions have audit persistence adapters and migration coverage.
 - Secrets stay in environment/configuration boundaries.
 - Database migrations and backups are explicit release steps in the runbook.
 
@@ -456,10 +459,12 @@ Acceptance criteria:
 
 - CI runs backend and frontend quality gates.
 - Capability and analytics endpoints are covered by API tests where FastAPI is installed.
+- Execution/risk audit tables are covered by migration and model tests.
 - Deployment and operations docs are sufficient for a new engineer to prepare cloud deployment and production checks.
 
 Testing:
 
 - Local execution of CI-equivalent commands.
 - API tests for production capability endpoints and analytics summary endpoint.
+- Migration/model tests for paper order, paper trade, and risk decision audit tables.
 - Future Docker Compose smoke tests and backup/restore rehearsal tests.

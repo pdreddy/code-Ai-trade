@@ -150,3 +150,59 @@ class DataQualityCheckModel(Base):
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     ingestion_batch: Mapped[IngestionBatchModel] = relationship(back_populates="quality_checks")
+
+
+class PaperOrderModel(Base):
+    """Persisted paper order with deterministic lifecycle state."""
+
+    __tablename__ = "paper_orders"
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True)
+    instrument_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("instruments.id"), nullable=False, index=True
+    )
+    side: Mapped[str] = mapped_column(String(16), nullable=False)
+    order_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(24, 8), nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    time_in_force: Mapped[str] = mapped_column(String(16), nullable=False)
+    limit_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+    stop_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    average_fill_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+
+
+class PaperTradeModel(Base):
+    """Persisted paper trade produced by the paper broker."""
+
+    __tablename__ = "paper_trades"
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True)
+    instrument_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("instruments.id"), nullable=False, index=True
+    )
+    entry_order_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), nullable=False)
+    exit_order_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True), nullable=True)
+    entry_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(24, 8), nullable=False)
+    exit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exit_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+    realized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+
+
+class RiskDecisionModel(Base):
+    """Persisted risk decision and rejection reasons for auditability."""
+
+    __tablename__ = "risk_decisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True), nullable=True, index=True
+    )
+    decision: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    reasons: Mapped[str] = mapped_column(String(4096), nullable=False)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
