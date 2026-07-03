@@ -1,33 +1,32 @@
-const modules = [
-  "Market Research",
-  "Quantitative Analysis",
-  "AI Signal Generation",
-  "Event-Driven Backtesting",
-  "Paper Trading",
-  "Portfolio Risk"
-];
+import { EmptyState, PagePanel } from "@/components/page-panel";
+import { StatusGrid } from "@/components/status-grid";
+import { TerminalShell } from "@/components/terminal-shell";
+import { backendCapabilities, supportedUniverse } from "@/lib/platform-data";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-terminal-background p-6 text-terminal-text">
-      <section className="mx-auto flex max-w-6xl flex-col gap-8">
-        <div className="rounded-2xl border border-terminal-border bg-terminal-panel p-8 shadow-2xl">
-          <p className="text-sm uppercase tracking-[0.35em] text-terminal-accent">Foundation Online</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight">KOC3 Quant Platform</h1>
-          <p className="mt-4 max-w-3xl text-terminal-muted">
-            Institutional research terminal foundation for market data, AI agents,
-            event-driven backtesting, paper trading, and portfolio analytics.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {modules.map((module) => (
-            <article key={module} className="rounded-xl border border-terminal-border bg-terminal-panel p-5">
-              <h2 className="text-lg font-medium">{module}</h2>
-              <p className="mt-2 text-sm text-terminal-muted">Architecture-ready module boundary.</p>
-            </article>
+    <TerminalShell>
+      <PagePanel
+        description="A production-oriented foundation is in place across market data, agents, decisions, backtesting, paper trading, and risk. UI workspaces intentionally show empty states until API endpoints and persistence adapters are added."
+        eyebrow="Dashboard"
+        title="Research Platform Status"
+      >
+        <StatusGrid capabilities={backendCapabilities} />
+      </PagePanel>
+      <PagePanel
+        description="The platform is designed for broad equity and ETF coverage without hard-coding provider behavior into the UI."
+        eyebrow="Universe"
+        title="Supported Research Universe"
+      >
+        <div className="flex flex-wrap gap-3">
+          {supportedUniverse.map((symbol) => (
+            <span className="rounded-lg border border-terminal-border bg-black/20 px-4 py-2 text-sm" key={symbol}>
+              {symbol}
+            </span>
           ))}
         </div>
-      </section>
-    </main>
+      </PagePanel>
+      <EmptyState message="Next implementation step: API endpoints and persistence adapters for backtests, paper trading, risk decisions, and analytics." />
+    </TerminalShell>
   );
 }

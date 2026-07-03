@@ -354,7 +354,7 @@ Testing:
 
 Objectives:
 
-- Build Dashboard, Scanner, Signals, Stock Details, Backtests, Trades, Portfolio, Analytics, Strategies, Watchlists, and Settings pages.
+- Build Dashboard, Signals, Stock Details, Backtests, Paper Trades, Portfolio, Analytics, and Watchlists pages with honest empty states until APIs are available.
 - Keep business logic outside UI components.
 - Provide a professional dark terminal UX inspired by Bloomberg, TradingView, ThinkOrSwim, and Interactive Brokers.
 
@@ -362,25 +362,25 @@ Files:
 
 - `frontend/app/` route segments.
 - `frontend/components/` reusable terminal widgets.
-- `frontend/lib/api/` typed API clients.
-- `frontend/lib/query/` TanStack Query hooks.
-- `frontend/types/` frontend DTOs.
+- `frontend/lib/platform-data.ts` static capability metadata.
+- Future API clients/query hooks once backend endpoints are available.
 
 Architecture:
 
 - UI components render typed data and emit typed intents; they do not implement trading rules.
-- API clients isolate transport concerns.
-- Demo mode labeling is controlled by backend state and surfaced consistently.
+- Route components compose reusable terminal shell/panel widgets and avoid business logic.
+- Demo mode labeling will be controlled by backend state once API endpoints exist.
 
 Dependencies:
 
-- Next.js 15, React 19, TailwindCSS, shadcn/ui, TanStack Query/Table, Framer Motion, Lightweight Charts, Recharts, React Hook Form, and Zod.
+- Next.js 15, React 19, and TailwindCSS for the current terminal shell.
+- shadcn/ui, TanStack Query/Table, Framer Motion, Lightweight Charts, Recharts, React Hook Form, and Zod remain planned for data-connected workflows.
 
 Acceptance criteria:
 
 - No dead controls are shipped; controls either execute real flows or are absent.
 - Pages are responsive and keyboard-accessible.
-- Stock details and backtest screens render only real backend data or clearly labeled historical demo outputs.
+- Stock details and backtest screens render honest empty states until real backend data or clearly labeled historical demo outputs are available.
 
 Testing:
 
