@@ -58,8 +58,14 @@ Services:
 
 - Backend API: <http://localhost:8000>
 - Frontend: <http://localhost:3000>
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
+- PostgreSQL: `localhost:${AI_QUANT_POSTGRES_PORT:-15432}`
+- Redis: `localhost:${AI_QUANT_REDIS_PORT:-16379}`
+
+The Postgres and Redis host ports intentionally default to `15432` and `16379` to avoid collisions with locally installed database services. Override them when needed:
+
+```bash
+AI_QUANT_POSTGRES_PORT=5432 AI_QUANT_REDIS_PORT=6379 docker compose up --build
+```
 
 ## Quality Checks
 
