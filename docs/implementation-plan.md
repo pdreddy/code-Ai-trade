@@ -176,14 +176,15 @@ Objectives:
 
 Files:
 
-- `backend/app/domain/agents.py`.
-- `backend/app/application/agents/`.
-- `backend/app/infrastructure/repositories/signals.py`.
-- `tests/agents/`.
+- `backend/app/domain/agents.py` for agent request, standardized vote, and agent protocol contracts.
+- `backend/app/application/agents/technical.py` for deterministic V1 trend, momentum, volatility, risk, portfolio, mean-reversion, breakout, support/resistance, volume, and market-regime agents.
+- `backend/app/application/agents/registry.py` for deterministic agent-set construction.
+- `backend/app/infrastructure/repositories/signals.py` for later signal persistence.
+- `tests/domain/test_agent_contracts.py` and `tests/domain/test_agents.py` for agent contract and deterministic vote coverage.
 
 Architecture:
 
-- Agents receive historical features and portfolio context through typed inputs.
+- Agents receive historical bars plus optional portfolio/risk context through typed inputs.
 - Agents do not fetch data, mutate portfolios, place orders, or know API details.
 - Reasons must be deterministic strings derived from evaluated conditions.
 
@@ -199,9 +200,9 @@ Acceptance criteria:
 
 Testing:
 
-- Unit tests per agent.
-- Regression tests using known historical windows.
-- Leakage tests validating feature cutoffs.
+- Unit tests proving the full required agent set is registered.
+- Deterministic behavior tests using synthetic but internally consistent bar histories.
+- Leakage tests validating agent requests reject future bars.
 
 ## Milestone 6: Master AI Decision Engine
 

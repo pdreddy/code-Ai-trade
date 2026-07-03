@@ -1,5 +1,6 @@
 """Public domain model exports for application services and tests."""
 
+from backend.app.domain.agents import AgentRequest, AgentVote, TradingAgent
 from backend.app.domain.entities import (
     AgentSignal,
     BacktestRun,
@@ -26,7 +27,9 @@ from backend.app.domain.errors import DomainValidationError
 from backend.app.domain.value_objects import Confidence, Price, Quantity, RiskFraction
 
 __all__ = [
+    "AgentRequest",
     "AgentSignal",
+    "AgentVote",
     "AssetClass",
     "BacktestRun",
     "Bar",
@@ -49,4 +52,5 @@ __all__ = [
     "SignalAction",
     "TimeInForce",
     "Trade",
+    "TradingAgent",
 ]
