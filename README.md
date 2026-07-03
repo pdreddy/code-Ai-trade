@@ -70,3 +70,14 @@ pytest
 cd frontend && npm run typecheck
 cd frontend && npm run build
 ```
+
+## Five-Year Market Snapshot
+
+The UI does not show synthetic prices. To populate the Watchlists page with real five-year Yahoo Finance chart data for SPY, QQQ, IWM, and DIA, run:
+
+```bash
+python scripts/generate_market_snapshot.py
+cd frontend && npm run build
+```
+
+The script writes `frontend/lib/generated-market-snapshot.ts`, which is intentionally empty until regenerated from a real provider response.
