@@ -137,11 +137,11 @@ Objectives:
 
 Files:
 
-- `backend/app/infrastructure/database/models.py`.
-- `backend/app/infrastructure/database/session.py`.
-- `backend/app/infrastructure/repositories/market_data.py`.
+- `backend/app/infrastructure/database/models.py` for SQLAlchemy instrument, bar, corporate-action, ingestion-batch, and quality-check tables.
+- `backend/app/infrastructure/database/session.py` for engine, session factory, and transactional session scope construction.
+- `backend/app/infrastructure/repositories/market_data.py` for SQLAlchemy market-data persistence and retrieval mappings.
 - `backend/alembic/` migrations.
-- `tests/integration/database/`.
+- `tests/storage/` and `tests/integration/database/` for schema and repository coverage.
 
 Architecture:
 
@@ -155,12 +155,13 @@ Dependencies:
 
 Acceptance criteria:
 
-- Duplicate bars cannot silently create duplicate time-series records.
+- Duplicate bars cannot silently create duplicate time-series records because uniqueness includes instrument, timestamp, provider, and adjustment policy.
 - Corporate actions are versioned with source lineage.
 - Storage supports adjusted and raw data policies without ambiguity.
 
 Testing:
 
+- Schema tests for idempotency constraints.
 - Migration tests.
 - Repository integration tests against PostgreSQL.
 - Data-quality regression tests for split and dividend scenarios.
