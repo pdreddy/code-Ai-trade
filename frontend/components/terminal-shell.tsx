@@ -8,7 +8,7 @@ export function TerminalShell({ children }: Readonly<{ children: React.ReactNode
         <header className="rounded-2xl border border-terminal-border bg-terminal-panel/95 p-5 shadow-2xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-terminal-accent">KOC3 Research Terminal</p>
+              <p className="text-xs uppercase tracking-[0.35em] text-terminal-accent">AI Quant Research Terminal</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">AI Quant Platform</h1>
               <p className="mt-2 max-w-3xl text-sm text-terminal-muted">
                 Institutional research workspace for market data, AI signals, event-driven backtests,

@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: koc3
-      POSTGRES_USER: koc3
-      POSTGRES_PASSWORD: koc3
+      POSTGRES_DB: quant
+      POSTGRES_USER: quant
+      POSTGRES_PASSWORD: quant
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U koc3 -d koc3"]
+      test: ["CMD-SHELL", "pg_isready -U quant -d quant"]
       interval: 10s
       timeout: 5s
       retries: 5

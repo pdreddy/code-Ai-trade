@@ -1,4 +1,4 @@
-# KOC3 Quant Platform
+# AI Quant Platform
 
 Production-grade foundation for an AI quantitative research and trading platform.
 

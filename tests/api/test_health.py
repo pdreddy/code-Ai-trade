@@ -17,6 +17,6 @@ def test_health_endpoint_returns_runtime_metadata() -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["service"] == "KOC3 Quant Platform"
+    assert payload["service"] == "AI Quant Platform"
     assert payload["market_data_provider"] == "yahoo"
     assert "timestamp_utc" in payload

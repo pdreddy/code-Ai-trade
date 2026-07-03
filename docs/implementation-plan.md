@@ -1,4 +1,4 @@
-# KOC3 Quant Platform Implementation Plan
+# AI Quant Platform Implementation Plan
 
 This repository will be built incrementally. Each milestone must compile, run, and pass its acceptance checks before the next milestone begins. Milestones are intentionally narrow so the platform can grow without weakening data-quality, backtest, or execution guarantees.
 
@@ -22,7 +22,7 @@ Files:
 Architecture:
 
 - FastAPI is created through an application factory so tests, workers, and future deployment entrypoints can inject settings.
-- Settings are centralized through Pydantic Settings with a `KOC3_` environment prefix.
+- Settings are centralized through Pydantic Settings with a `AI_QUANT_` environment prefix.
 - The frontend shell is a typed Next.js app-router application with a dark terminal visual system and no business logic.
 - Docker Compose starts PostgreSQL and Redis before application services by using container health checks.
 
@@ -398,67 +398,68 @@ Objectives:
 
 Files:
 
-- `backend/app/application/analytics/`.
-- `backend/app/domain/analytics.py`.
-- `frontend/components/charts/`.
+- `backend/app/application/analytics.py`.
+- `backend/app/api/v1/analytics.py`.
 - `tests/analytics/`.
+- `tests/api/test_capabilities_and_analytics.py`.
 
 Architecture:
 
-- Analytics are derived from persisted backtest, trade, market, and portfolio records.
+- Analytics are derived from real backtest, trade, and portfolio records supplied by persistence adapters or API callers.
 - Calculations are deterministic and versionable.
-- Chart components consume prepared DTOs rather than computing research metrics in the UI.
+- Chart DTOs are prepared by backend services rather than computed in UI components.
 
 Dependencies:
 
-- Pandas/NumPy/Polars, Plotly for backend figure generation where needed, Recharts/Lightweight Charts for frontend rendering.
+- Existing backtest, trade, and portfolio entities.
+- Pandas/NumPy/Polars, Plotly, Recharts, and Lightweight Charts remain optional future visualization/validation layers.
 
 Acceptance criteria:
 
 - Metrics reconcile with backtester outputs.
-- Benchmark comparisons use aligned calendars and explicit missing-data handling.
-- Reports can be regenerated from persisted inputs.
+- Equity and drawdown chart DTOs are generated from actual result curves.
+- Reports can be regenerated from persisted inputs once persistence adapters are added.
 
 Testing:
 
-- Unit tests for metrics.
-- Regression tests against known monthly return and drawdown fixtures.
-- Frontend rendering checks for chart DTOs.
+- Unit tests for metrics and chart DTOs.
+- API tests for caller-supplied trade analytics.
+- Future frontend rendering checks for chart DTOs.
 
 ## Milestone 12: Production Hardening
 
 Objectives:
 
-- Add observability, security, CI/CD, backup/restore, deployment docs, and performance profiling.
-- Prepare Docker Compose flows for future cloud deployment.
-- Define operational runbooks for data ingestion, backtesting, paper trading, and recovery.
+- Add API discovery endpoints, analytics API, CI/CD, production runbook, security baseline, and observability guidance.
+- Keep Docker Compose and Render deployment flows aligned with renamed platform configuration.
+- Define operational runbooks for deployment, health checks, backups, and future data/trading workflows.
 
 Files:
 
-- `.github/workflows/` or equivalent CI configuration.
-- `docs/operations/`.
-- `backend/app/core/observability.py`.
-- `docker/` production-oriented Docker assets.
-- `scripts/` operational commands.
+- `.github/workflows/quality.yml`.
+- `docs/operations/production-hardening.md`.
+- `backend/app/api/v1/capabilities.py`.
+- `backend/app/api/v1/analytics.py`.
+- Render, Docker Compose, and configuration files renamed away from prior project branding.
 
 Architecture:
 
-- Application services emit structured logs and metrics.
+- API endpoints expose readiness/capability state without fabricating trading data.
 - Secrets stay in environment/configuration boundaries.
-- Database migrations and backups are explicit release steps.
+- Database migrations and backups are explicit release steps in the runbook.
 
 Dependencies:
 
-- CI runner, Docker BuildKit, PostgreSQL backup tooling, and observability libraries selected during implementation.
+- GitHub Actions, Docker/Render deployment configuration, PostgreSQL managed backups, and future observability libraries.
 
 Acceptance criteria:
 
 - CI runs backend and frontend quality gates.
-- Deployment docs are sufficient for a new engineer to run the platform locally and prepare a cloud deployment.
-- Operational scripts fail fast and are safe to rerun.
+- Capability and analytics endpoints are covered by API tests where FastAPI is installed.
+- Deployment and operations docs are sufficient for a new engineer to prepare cloud deployment and production checks.
 
 Testing:
 
-- CI dry-runs where available.
-- Docker Compose smoke tests.
-- Backup/restore rehearsal tests.
+- Local execution of CI-equivalent commands.
+- API tests for production capability endpoints and analytics summary endpoint.
+- Future Docker Compose smoke tests and backup/restore rehearsal tests.

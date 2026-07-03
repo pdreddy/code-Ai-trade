@@ -3,7 +3,7 @@ previews:
 
 services:
   - type: web
-    name: koc3-quant-backend
+    name: ai-quant-backend
     runtime: python
     plan: starter
     region: oregon
@@ -15,26 +15,26 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.13
-      - key: KOC3_ENVIRONMENT
+      - key: AI_QUANT_ENVIRONMENT
         value: production
-      - key: KOC3_DEMO_MODE
+      - key: AI_QUANT_DEMO_MODE
         value: "false"
-      - key: KOC3_MARKET_DATA_PROVIDER
+      - key: AI_QUANT_MARKET_DATA_PROVIDER
         value: yahoo
-      - key: KOC3_CORS_ORIGINS
-        value: '["https://koc3-quant-frontend.onrender.com"]'
-      - key: KOC3_DATABASE_URL
+      - key: AI_QUANT_CORS_ORIGINS
+        value: '["https://ai-quant-frontend.onrender.com"]'
+      - key: AI_QUANT_DATABASE_URL
         fromDatabase:
-          name: koc3-quant-postgres
+          name: ai-quant-postgres
           property: connectionString
-      - key: KOC3_REDIS_URL
+      - key: AI_QUANT_REDIS_URL
         fromService:
           type: keyvalue
-          name: koc3-quant-redis
+          name: ai-quant-redis
           property: connectionString
 
   - type: web
-    name: koc3-quant-frontend
+    name: ai-quant-frontend
     runtime: node
     plan: starter
     region: oregon
@@ -47,18 +47,18 @@ services:
       - key: NODE_VERSION
         value: 22.10.0
       - key: NEXT_PUBLIC_API_BASE_URL
-        value: https://koc3-quant-backend.onrender.com/api/v1
+        value: https://ai-quant-backend.onrender.com/api/v1
 
   - type: keyvalue
-    name: koc3-quant-redis
+    name: ai-quant-redis
     plan: starter
     region: oregon
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
 databases:
-  - name: koc3-quant-postgres
-    databaseName: koc3
-    user: koc3
+  - name: ai-quant-postgres
+    databaseName: quant
+    user: quant
     plan: starter
     region: oregon

@@ -1,4 +1,4 @@
-"""Alembic migration environment for the KOC3 backend."""
+"""Alembic migration environment for the AI Quant backend."""
 
 from logging.config import fileConfig
 

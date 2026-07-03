@@ -1,4 +1,4 @@
-"""Framework-independent domain entities for the KOC3 research platform."""
+"""Framework-independent domain entities for the AI Quant research platform."""
 
 from dataclasses import dataclass
 from datetime import date, datetime

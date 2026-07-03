@@ -3,16 +3,16 @@
 This guide deploys the current platform foundation to Render with a backend web service,
 a frontend web service, managed PostgreSQL, and managed Key Value (Redis-compatible)
 cache. It is intended for testing the current health endpoint, frontend shell, market-data
-provider code paths, and database migrations. Paper trading and live success-rate tracking
-are not ready until the backtester, execution simulator, paper broker, risk engine, and UI
-milestones are implemented.
+provider code paths, and database migrations. Backtester, execution simulator, paper broker, risk engine, analytics, and UI foundation
+services are implemented. Live trading remains disabled until live broker adapters, persistent audit
+logs, and production risk operations are independently reviewed.
 
 ## Architecture
 
-- `koc3-quant-backend`: Python web service running FastAPI through Uvicorn.
-- `koc3-quant-frontend`: Node web service running the Next.js frontend.
-- `koc3-quant-postgres`: Render-managed PostgreSQL database.
-- `koc3-quant-redis`: Render Key Value service used as the Redis-compatible cache URL. The Blueprint sets `ipAllowList: []` so only internal Render services can connect.
+- `ai-quant-backend`: Python web service running FastAPI through Uvicorn.
+- `ai-quant-frontend`: Node web service running the Next.js frontend.
+- `ai-quant-postgres`: Render-managed PostgreSQL database.
+- `ai-quant-redis`: Render Key Value service used as the Redis-compatible cache URL. The Blueprint sets `ipAllowList: []` so only internal Render services can connect.
 
 ## Deploy
 
@@ -25,13 +25,13 @@ milestones are implemented.
 7. Open the backend health endpoint:
 
    ```bash
-   curl https://koc3-quant-backend.onrender.com/api/v1/health
+   curl https://ai-quant-backend.onrender.com/api/v1/health
    ```
 
 8. Open the frontend:
 
    ```text
-   https://koc3-quant-frontend.onrender.com
+   https://ai-quant-frontend.onrender.com
    ```
 
 ## Validate Locally Before Pushing
@@ -54,10 +54,11 @@ cd frontend && npm run build
 
 ## Notes
 
-- The frontend uses `NEXT_PUBLIC_API_BASE_URL=https://koc3-quant-backend.onrender.com/api/v1`.
+- The frontend uses `NEXT_PUBLIC_API_BASE_URL=https://ai-quant-backend.onrender.com/api/v1`.
   If you rename the backend service or add a custom domain, update `render.yaml` before syncing.
 - Render Key Value requires an `ipAllowList`; this Blueprint blocks external connections with `ipAllowList: []`.
 - Render exposes PostgreSQL as a standard `postgresql://` URL. The backend normalizes that to
   SQLAlchemy's `postgresql+psycopg://` dialect at runtime.
-- Do not enable real trading from this deployment. The current milestone set does not yet include
-  the event-driven backtester, paper broker, risk engine, or live broker adapters.
+- Do not enable real trading from this deployment. The platform currently supports research,
+  backtesting foundations, paper-trading foundations, risk checks, and analytics summaries, but
+  it does not include live broker adapters or production trading approval workflows.
