@@ -1,5 +1,9 @@
 from http import HTTPStatus
 
+import pytest
+
+pytest.importorskip("fastapi", reason="FastAPI dependency is required for API tests")
+
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
