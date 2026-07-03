@@ -287,19 +287,20 @@ Objectives:
 
 Files:
 
-- `backend/app/application/paper_trading/`.
-- `backend/app/domain/execution.py` if additional execution policies are needed.
+- `backend/app/application/paper_trading.py`.
+- `backend/app/application/execution.py`.
 - `tests/paper_trading/`.
 
 Architecture:
 
-- Paper trading consumes market events and orders through the same fill engine as backtesting.
-- Broker state changes are auditable and persisted.
+- Paper trading consumes market bars and pending orders through the same next-open execution model as backtesting.
+- Broker state changes are auditable in memory for this milestone; persistence adapters remain future infrastructure work.
 - Live broker adapters remain future infrastructure additions.
 
 Dependencies:
 
-- Execution repositories, market data repositories, and Redis/Celery for later asynchronous workflows.
+- Shared execution model, domain orders/trades/portfolio entities, and risk engine.
+- Execution repositories, market data repositories, and Redis/Celery remain later asynchronous workflow dependencies.
 
 Acceptance criteria:
 
@@ -323,24 +324,24 @@ Objectives:
 
 Files:
 
-- `backend/app/domain/risk.py`.
-- `backend/app/application/risk/`.
+- `backend/app/application/risk.py`.
 - `tests/risk/`.
+- Future persistence adapter for risk decisions.
 
 Architecture:
 
 - Risk checks are pure policies over portfolio, order, market, and configuration inputs.
-- Risk decisions are explicit allow/reject/reduce outputs.
-- Kill-switch state is centralized and observable.
+- Risk decisions are explicit approve/reject outputs with auditable reasons.
+- Kill-switch state is supplied through the domain risk rule and can be centralized by future persistence/configuration adapters.
 
 Dependencies:
 
-- Portfolio repositories, market data repositories, and configuration policies.
+- Domain risk rules, portfolio/order context, liquidity inputs, and configuration policies.
 
 Acceptance criteria:
 
 - Orders breaching any configured limit cannot reach execution.
-- Risk rejections include machine-readable codes and human-readable explanations.
+- Risk rejections include explicit human-readable reasons; machine-readable reason codes can be added with persistence/API adapters.
 - Risk policies can run in historical and paper contexts.
 
 Testing:

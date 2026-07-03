@@ -6,17 +6,17 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import ROUND_FLOOR, Decimal
+from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID, uuid4
 
+from backend.app.application.execution import ExecutionPolicy, NextOpenExecutionModel
 from backend.app.domain.entities import BacktestRun, Bar, MasterDecision, Order, Trade
 from backend.app.domain.enums import OrderSide, OrderState, OrderType, SignalAction, TimeInForce
 from backend.app.domain.errors import DomainValidationError
 from backend.app.domain.value_objects import Price, Quantity
 
 TRADING_DAYS_PER_YEAR = Decimal("252")
-BASIS_POINTS = Decimal("10000")
 MIN_SAMPLE_SIZE = 2
 
 
@@ -228,7 +228,9 @@ class EventDrivenBacktester:
     ) -> tuple[Decimal, _OpenPosition | None]:
         if pending_order.submitted_at >= bar.timestamp:
             raise DomainValidationError("pending order cannot fill on the signal bar")
-        fill_price = _slipped_open(bar.open, pending_order.side, run.slippage_bps)
+        execution_policy = ExecutionPolicy(run.commission, run.slippage_bps)
+        execution_model = NextOpenExecutionModel()
+        fill_price = execution_model.fill_price(bar.open, pending_order.side, execution_policy)
         order_id = uuid4()
         order = Order(
             id=order_id,
@@ -244,7 +246,7 @@ class EventDrivenBacktester:
         )
 
         if pending_order.side is OrderSide.BUY and position is None:
-            quantity = _buy_quantity(cash, fill_price.value, run.commission)
+            quantity = execution_model.max_buy_quantity(cash, fill_price, execution_policy)
             if quantity <= Decimal("0"):
                 rejected = _rejected_order(order, "insufficient cash for next-open fill")
                 orders.append(rejected)
@@ -323,18 +325,6 @@ def _order_from_decision(
     if decision.action is SignalAction.SELL and position is not None:
         return _PendingOrder(decision, OrderSide.SELL, decision.signal_bar_timestamp)
     return None
-
-
-def _slipped_open(open_price: Price, side: OrderSide, slippage_bps: Decimal) -> Price:
-    multiplier = Decimal("1") + slippage_bps / BASIS_POINTS
-    if side is OrderSide.SELL:
-        multiplier = Decimal("1") - slippage_bps / BASIS_POINTS
-    return Price(open_price.value * multiplier)
-
-
-def _buy_quantity(cash: Decimal, price: Decimal, commission: Decimal) -> Decimal:
-    raw_quantity = (cash - commission) / price
-    return raw_quantity.quantize(Decimal("0.000001"), rounding=ROUND_FLOOR)
 
 
 def _replace_order_quantity(order: Order, quantity: Quantity) -> Order:
