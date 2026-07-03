@@ -250,27 +250,26 @@ Objectives:
 
 Files:
 
-- `backend/app/domain/backtesting.py`.
-- `backend/app/application/backtesting/`.
-- `backend/app/infrastructure/repositories/backtests.py`.
+- `backend/app/application/backtesting.py`.
 - `tests/backtesting/`.
+- Future persistence adapter: `backend/app/infrastructure/repositories/backtests.py`.
 
 Architecture:
 
-- Market events, signal events, order events, fill events, and portfolio events are explicit.
-- Execution simulation is shared with paper trading to avoid semantic drift.
-- The engine cannot read bars later than the event being processed.
+- Market, signal, order, fill, and portfolio events are emitted into an auditable event log.
+- Execution simulation is isolated in the application layer so paper trading can reuse the same next-open fill semantics in a later milestone.
+- The engine processes bars sequentially and only submits orders after the signal bar has closed.
 
 Dependencies:
 
-- Pandas/NumPy or Polars for metrics and time-series calculations.
-- VectorBT may be used for validation or analytics, not as a shortcut around event semantics.
+- Domain bars and master decisions from prior milestones.
+- Pandas/NumPy/Polars and VectorBT remain optional future validation layers, not shortcuts around event semantics.
 
 Acceptance criteria:
 
 - Same-bar fills are impossible by design.
 - Metrics match independent validation fixtures.
-- Backtests support 1, 3, 5, and 10 year ranges.
+- Backtest requests are date-range driven, so 1, 3, 5, and 10 year ranges are supported by supplied bars.
 
 Testing:
 
