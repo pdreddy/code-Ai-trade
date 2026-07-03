@@ -41,6 +41,15 @@ services:
       redis:
         condition: service_healthy
 
+  market-snapshot:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: python scripts/generate_market_snapshot.py
+    profiles:
+      - tools
+
   frontend:
     build:
       context: frontend

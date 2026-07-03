@@ -80,4 +80,11 @@ python scripts/generate_market_snapshot.py
 cd frontend && npm run build
 ```
 
+If you are running with Docker Compose, run the snapshot generator from the repo root and then rebuild/restart the frontend container:
+
+```bash
+docker compose run --rm market-snapshot
+docker compose up -d --build frontend
+```
+
 The script writes `frontend/lib/generated-market-snapshot.ts`, which is intentionally empty until regenerated from a real provider response.
