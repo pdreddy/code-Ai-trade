@@ -12,7 +12,7 @@ milestones are implemented.
 - `koc3-quant-backend`: Python web service running FastAPI through Uvicorn.
 - `koc3-quant-frontend`: Node web service running the Next.js frontend.
 - `koc3-quant-postgres`: Render-managed PostgreSQL database.
-- `koc3-quant-redis`: Render Key Value service used as the Redis-compatible cache URL.
+- `koc3-quant-redis`: Render Key Value service used as the Redis-compatible cache URL. The Blueprint sets `ipAllowList: []` so only internal Render services can connect.
 
 ## Deploy
 
@@ -56,6 +56,7 @@ cd frontend && npm run build
 
 - The frontend uses `NEXT_PUBLIC_API_BASE_URL=https://koc3-quant-backend.onrender.com/api/v1`.
   If you rename the backend service or add a custom domain, update `render.yaml` before syncing.
+- Render Key Value requires an `ipAllowList`; this Blueprint blocks external connections with `ipAllowList: []`.
 - Render exposes PostgreSQL as a standard `postgresql://` URL. The backend normalizes that to
   SQLAlchemy's `postgresql+psycopg://` dialect at runtime.
 - Do not enable real trading from this deployment. The current milestone set does not yet include

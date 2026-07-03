@@ -1,11 +1,11 @@
 """Domain contracts for independent trading research agents."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from backend.app.domain.entities import Bar, PortfolioPosition, RiskRule
 from backend.app.domain.enums import SignalAction
@@ -52,6 +52,7 @@ class AgentVote:
     reasons: tuple[str, ...]
     evaluated_at: datetime
     signal_bar_timestamp: datetime
+    id: UUID = field(default_factory=uuid4)
 
     def __post_init__(self) -> None:
         if not self.agent_name.strip():

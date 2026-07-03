@@ -215,14 +215,14 @@ Objectives:
 Files:
 
 - `backend/app/application/decision_engine.py`.
-- `backend/app/domain/decisions.py` if specialized decision policies are needed.
+- `backend/app/application/decision_service.py`.
 - `tests/decisions/`.
 
 Architecture:
 
 - Decision policies are configuration driven and versioned.
 - Decisions are generated after signal-bar close and cannot imply same-bar fills.
-- The engine is stateless except for repository writes.
+- The engine is stateless; repository writes are coordinated by an application service so aggregation remains pure and persistence remains explicit.
 
 Dependencies:
 
@@ -238,7 +238,7 @@ Testing:
 
 - Unit tests for vote aggregation.
 - Regression tests for conflicting agent scenarios.
-- Persistence tests for decision lineage.
+- Service tests for decision persistence through the signal repository contract.
 
 ## Milestone 7: Event-Driven Backtester
 

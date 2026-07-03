@@ -54,6 +54,7 @@ services:
     plan: starter
     region: oregon
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   - name: koc3-quant-postgres
