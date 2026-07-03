@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Standings - KOC Season 2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root{
+      --bg1:#667eea; --bg2:#764ba2; --ink:#1a202c; --muted:#718096; --card:#ffffff;
+      --ring:#e2e8f0; --accent:#22d3ee;
+    }
+    html,body{ height:100%; }
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      min-height:100vh; color:var(--ink);
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    .header{ position:sticky; top:0; z-index:50; backdrop-filter:blur(10px); }
+    .header-bar{
+      display:flex; align-items:center; justify-content:space-between;
+      max-width:1100px; margin:0 auto; padding:.75rem 1rem;
+      background:rgba(255,255,255,.95); box-shadow:0 2px 8px rgba(0,0,0,.08);
+    }
+    .brand{ display:flex; align-items:center; gap:.5rem; }
+    .brand i{ font-size:1.5rem; }
+    .brand strong{
+      font-size:1.15rem; background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .menu-btn{ display:none; border:0; background:transparent; font-size:1.5rem; padding:.25rem .5rem; cursor:pointer; }
+    nav.nav{
+      max-width:1100px; margin:.35rem auto 0; display:flex; gap:.5rem; padding:.5rem 1rem;
+      background:rgba(255,255,255,.9); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08);
+    }
+    .nav a{
+      text-decoration:none; color:#4a5568; font-weight:600;
+      padding:.6rem 1rem; border-radius:8px; white-space:nowrap;
+    }
+    .nav a[aria-current="page"], .nav a:hover{
+      color:#fff; background:linear-gradient(135deg,var(--bg1),var(--bg2));
+    }
+
+    .container{ max-width:1100px; margin:1rem auto 2rem; padding:0 1rem; }
+    .page-header{
+      background:#fff; border-radius:12px; padding:1.25rem 1.5rem; margin-bottom:1rem;
+      box-shadow:0 2px 8px rgba(0,0,0,.08); border-left:4px solid var(--accent);
+      text-align:center;
+    }
+    .page-header h1{ font-size:1.9rem; margin-bottom:.25rem; }
+    .page-header p{ color:var(--muted); }
+
+    .card{
+      background:#fff; border-radius:12px; padding:1.25rem 1.5rem; margin-bottom:1rem;
+      box-shadow:0 4px 12px rgba(0,0,0,.1);
+    }
+    .card h2{ margin-bottom:1rem; }
+
+    .access-card{ border:2px solid var(--accent); text-align:center; }
+    .access-controls{ display:flex; gap:.6rem; justify-content:center; align-items:center; flex-wrap:wrap; }
+    .access-input{
+      padding:.7rem 1rem; border:2px solid var(--ring); border-radius:8px; min-width:240px;
+    }
+    .access-input:focus{ outline:none; border-color:var(--accent); }
+    .btn{
+      padding:.7rem 1.2rem; border:none; border-radius:8px; font-weight:800; color:#fff; cursor:pointer;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2)); box-shadow:0 2px 10px rgba(102,126,234,.35);
+    }
+    .btn.secondary{ background:#64748b; box-shadow:none; }
+    .btn.success{ background:linear-gradient(135deg,#10b981,#059669); box-shadow:0 2px 10px rgba(16,185,129,.35); }
+    .btn.warn{ background:linear-gradient(135deg,#f59e0b,#d97706); }
+    .btn.danger{ background:linear-gradient(135deg,#ef4444,#dc2626); }
+    .btn.ghost{ background:#fff; color:#1f2937; border:2px solid var(--ring); box-shadow:none; }
+
+    .scoring-card{ border:2px solid var(--accent); background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%); }
+    .card-header{ display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; }
+    .tools{ display:flex; gap:.5rem; flex-wrap:wrap; }
+
+    .parser-section{ margin-top:1rem; }
+    .parser-textarea{
+      width:100%; min-height:220px; padding:1rem; border:2px solid var(--ring); border-radius:8px;
+      font-family:monospace; font-size:.9rem; line-height:1.6; resize:vertical;
+    }
+    .parser-textarea:focus{ outline:none; border-color:var(--accent); }
+    .parser-textarea::placeholder{ color:var(--muted); }
+
+    .preview-section{ margin-top:1rem; padding:1rem; background:#f8fafc; border-radius:8px; border:1px solid var(--ring); }
+    .preview-section h3{ margin-bottom:.75rem; font-size:1rem; color:var(--ink); }
+    .preview-item{ padding:.5rem .75rem; margin-bottom:.5rem; background:#fff; border-radius:6px; border-left:3px solid var(--accent); font-size:.9rem; }
+    .preview-item.error{ border-left-color:#ef4444; background:#fef2f2; color:#991b1b; }
+    .preview-item.valid{ border-left-color:#10b981; }
+    .preview-item.total{ border-left-color:#667eea; background:#d1fae5; font-weight:700; }
+    .preview-empty{ color:var(--muted); font-style:italic; }
+
+    .format-help{ margin-top:1rem; padding:1rem; background:#ecfeff; border-radius:8px; border:1px solid #a5f3fc; }
+    .format-help h4{ margin-bottom:.5rem; color:#0e7490; font-size:.9rem; }
+    .format-help pre{ font-size:.8rem; color:#155e75; white-space:pre-wrap; line-height:1.5; }
+
+    .form-actions{ display:flex; gap:.6rem; justify-content:center; flex-wrap:wrap; margin-top:1rem; }
+    .hidden{ display:none; }
+
+    .table-container{ overflow-x:auto; }
+    table{ width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; }
+    thead th{
+      background:linear-gradient(135deg,#0f172a,#1e293b); color:#fff; padding:.85rem; text-align:left;
+    }
+    tbody td{ padding:.85rem; border-bottom:1px solid var(--ring); }
+    tbody tr:hover{ background:#f8fafc; }
+
+    .standings-table tr.qualified{ background:linear-gradient(90deg,#d1fae5 0%, transparent 100%); }
+    .standings-table tr.qualified:hover{ background:linear-gradient(90deg,#a7f3d0 0%, #f8fafc 100%); }
+
+    .rank-cell{ font-weight:900; }
+    .team-cell{ font-weight:800; }
+    .center-cell{ text-align:center; }
+    .points-cell{ font-weight:900; }
+
+    .hint{ color:var(--muted); font-size:.9rem; margin-top:.35rem; }
+
+    .history-breakdown-wrapper{ display:flex; flex-direction:column; gap:.4rem; }
+    .history-toggle{
+      display:inline-flex; align-items:center; gap:.35rem; font-weight:700; color:#2563eb;
+      background:transparent; border:0; cursor:pointer; padding:0; font-size:.95rem;
+    }
+    .history-toggle:hover{ color:#1d4ed8; }
+    .history-toggle::before{ content:'▸'; transition:transform .2s ease; font-size:.9rem; }
+    .history-toggle[aria-expanded="true"]::before{ transform:rotate(90deg); }
+    .history-breakdown{
+      display:none; background:rgba(148,163,184,.15); border-radius:10px; padding:.65rem .8rem;
+      color:#475569;
+    }
+    .history-breakdown.open{ display:block; }
+    .history-line{ margin-bottom:.5rem; }
+    .history-line:last-child{ margin-bottom:0; }
+    .line-players{ margin-top:.35rem; font-size:.8rem; color:#475569; display:flex; flex-direction:column; gap:.2rem; }
+    .line-players span{ display:block; }
+
+    @media (max-width:768px){
+      .menu-btn{ display:block; }
+      nav.nav{ display:none; flex-direction:column; }
+      nav.nav.open{ display:flex; }
+      .container{ padding:0 .75rem; }
+      .form-actions .btn, .access-controls .btn{ width:100%; }
+      .card{ padding:1rem; }
+      .access-controls{ flex-direction:column; align-items:stretch; }
+      .access-input{ width:100%; min-width:0; }
+      .tools .btn{ width:100%; }
+      .card-header{ flex-direction:column; align-items:flex-start; }
+      .tools{ width:100%; }
+    }
+
+    @media (max-width:640px){
+      .page-header h1{ font-size:1.6rem; }
+      .form-actions{ flex-direction:column; }
+      .responsive-table thead{ display:none; }
+      .responsive-table tbody{ display:block; }
+      .responsive-table tbody tr{ display:block; border:1px solid var(--ring); border-radius:12px; margin-bottom:1rem; box-shadow:0 4px 12px rgba(15,23,42,.08); background:#fff; }
+      .responsive-table tbody td{ display:flex; flex-direction:column; align-items:flex-start; gap:.35rem; padding:.75rem 1rem; border-bottom:1px solid var(--ring); }
+      .responsive-table tbody td:last-child{ border-bottom:none; }
+      .responsive-table tbody td::before{ content:attr(data-label); font-weight:700; font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+    }
+  </style>
+</head>
+<body>
+<header class="header">
+  <div class="header-bar">
+    <div class="brand"><i>🏆</i><strong>KOC Season 2</strong></div>
+    <button id="menuBtn" class="menu-btn" aria-expanded="false" aria-controls="siteNav">☰</button>
+  </div>
+  <nav id="siteNav" class="nav">
+    <a href="index.html">👥 Teams</a>
+    <a href="index22.html">📅 Schedule</a>
+    <a href="rules.html">📋 Rules</a>
+    <a href="standings.html" aria-current="page">📊 Standings</a>
+    <a href="playerstats.html">🎾 Matchups</a>
+  </nav>
+</header>
+
+<main class="container">
+  <section class="page-header">
+    <h1>Tournament Standings</h1>
+    <p>Live rankings and match results (stored securely in Firebase)</p>
+  </section>
+
+  <section class="card access-card">
+    <h2>🔒 Score Entry Access</h2>
+    <div class="access-controls" style="margin:.5rem 0;">
+      <input type="password" id="accessCode" placeholder="Enter access code" class="access-input" />
+      <button class="btn" id="unlockBtn">Unlock Scoring</button>
+    </div>
+    <p class="hint">Captains: enter the secure access code provided by the organizers.</p>
+  </section>
+
+  <section id="scoringForm" class="card scoring-card hidden">
+    <div class="card-header">
+      <h2>📝 Quick Score Entry</h2>
+      <div class="tools">
+        <button class="btn secondary" id="lockBtn">Lock</button>
+        <button class="btn ghost" id="exportBtn">Export JSON</button>
+        <label class="btn ghost" for="importFile" style="cursor:pointer;">Import JSON</label>
+        <input id="importFile" type="file" accept="application/json" class="hidden" />
+      </div>
+    </div>
+
+    <div class="parser-section">
+      <textarea id="scoreInput" class="parser-textarea" placeholder="Paste match results here...
+
+Example formats (all work):
+SK vs RR
+S: Kanak vs Srini 4-0,4-1,4-1 (won) SK
+D1: KP/Fayaz vs Vasu/Sandeep 2-4, 4-0, 3-4(6-10) (won) RR
+D2: Raja/Uma vs Yogesh/Kalam 4-2, 1-4, 3-4(6-10) (won) RR
+
+Or with scores on next line:
+S: Kanak vs Srini
+4-0,4-1,4-1 (won) SK"></textarea>
+
+      <div id="previewSection" class="preview-section">
+        <h3>📋 Preview</h3>
+        <div id="previewContent" class="preview-empty">Enter scores above to see preview</div>
+      </div>
+
+      <div class="format-help">
+        <h4>📖 Format Guide</h4>
+        <pre>First line: TEAM1_ABBR vs TEAM2_ABBR (e.g., SK vs RR)
+
+Then each court:
+S/Singles: Player1 vs Player2 scores (won) WINNER
+D/D1/D2/Doubles: Player1/Player2 vs Player3/Player4 scores (won) WINNER
+
+• Tiebreaks: 3-4(6-10) means 3-4 with tiebreak 6-10
+• Scores can be on same line or next line
+• Team abbreviations: SK, RR, KC, KOCC, RS, AA, CT, ML, CC</pre>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn success" id="submitBtn">Save Match Result</button>
+      <button class="btn ghost" id="clearInputBtn">Clear Input</button>
+      <button class="btn warn" id="undoBtn">Undo Last</button>
+      <button class="btn danger" id="clearBtn">Clear All</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>📊 Current Standings</h2>
+    <div class="table-container">
+      <table class="standings-table responsive-table">
+        <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Team</th>
+          <th>Matches</th>
+          <th>Match Wins</th>
+          <th>Match Losses</th>
+          <th>Sets Won</th>
+          <th>Sets Lost</th>
+          <th>Set Diff</th>
+          <th>Games Won</th>
+          <th>Games Lost</th>
+          <th>Game Diff</th>
+          <th>Match Points</th>
+        </tr>
+        </thead>
+        <tbody id="standingsBody">
+        <tr><td colspan="12" class="center-cell" style="color:var(--muted);">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Sorted by Match Points → Set Diff → Sets Won → Game Diff → Games Won (top 4 highlighted).</p>
+  </section>
+
+  <section class="card">
+    <h2>📜 Match History</h2>
+    <div class="table-container">
+      <table class="history-table responsive-table">
+        <thead>
+        <tr>
+          <th>#</th>
+          <th>Teams</th>
+          <th>Games (Sets)</th>
+          <th>Winner</th>
+          <th>Breakdown</th>
+          <th>Date/Time</th>
+        </tr>
+        </thead>
+        <tbody id="historyBody">
+        <tr><td colspan="6" class="center-cell" style="color:var(--muted);">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDbO0eP52i4t3V94bEiDcl7WoKbSrrM9VA",
+    authDomain: "koc2-20fb8.firebaseapp.com",
+    databaseURL: "https://koc2-20fb8-default-rtdb.firebaseio.com",
+    projectId: "koc2-20fb8",
+    storageBucket: "koc2-20fb8.firebasestorage.app",
+    messagingSenderId: "317734341461",
+    appId: "1:317734341461:web:1bcad5a1792fac0e46bddc"
+  };
+
+  const firebaseApp = firebase.initializeApp(firebaseConfig);
+  const auth = firebaseApp.auth();
+  const database = firebaseApp.database();
+  const matchesRef = database.ref('KOC2DB');
+
+  let authReady = false;
+  function ensureAuth(){
+    if(authReady) return Promise.resolve();
+    return auth.signInAnonymously().then(() => { authReady = true; });
+  }
+  ensureAuth().catch(err => console.error('Auth failed', err));
+
+  async function guardWriteAccess(){
+    try {
+      await ensureAuth();
+      return true;
+    } catch(err){
+      alert('❌ Authentication failed. Cannot save.');
+      return false;
+    }
+  }
+
+  const TOURNAMENT = {
+    teams: [
+      { name: 'Rally Royals', abbreviation: 'RR', players: ['Yogesh','Srinivaasan Arumugam Sampath','Charan Macharla','Kalam Shaik','Sandeep Gengineri','Chandrakant Dharme','Vasu Gandhi'] },
+      { name: "Karna's Crusaders", abbreviation: 'KC', players: ['Srikanth','Vibhor Sharma','Malla Cheerke','Anshul Goyal','Srinidhi Kulkarni','Lloyd Kumar','Dinkar Bhardwaj'] },
+      { name: 'Spin Kings', abbreviation: 'SK', players: ['Uma V','Madhu','Noufal Mohamed','Kanak Periasamy','Fayaz','KP Krishna','Rajasekhar Mangalampally'] },
+      { name: 'KOC Challengers', abbreviation: 'KOCC', players: ['Narayan Prasad','Nivas Nazeer','Ravi Sengodan','Damu Palavali','Sarat Edara','Vidya Sagar Reddy','Sudhakar Nallapati'] },
+      { name: 'Rally Squad', abbreviation: 'RS', players: ['Manish Jangid','Srinivas Y','Trinadh Cheepilla','Biju Koshy','Jitender Kumar','Ritesh Kumar','Dinesh Timmareddy'] },
+      { name: 'Agni Aces', abbreviation: 'AA', players: ['Vinod Aripaka','Gopi Guru','Venu Servepalli','Nazeer Mohammed','Naveenkumar Mohanram','Nizam Karimudeen','Ratnesh Sinha'] },
+      { name: 'Chill Titans', abbreviation: 'CT', players: ['Satish Orugunta','Gokul R','Prashanth Tiramareddi','Jaweed','Ram Kantheti','Durga','Hari Mothukuri'] },
+      { name: 'Mega Lions', abbreviation: 'ML', players: ['Anil Kunda','Mirza H','Raj Chejerla','Mohan Koripuri','Venky Dh','Rajasekhar Karru','Nagarjuna Saladi'] },
+      { name: 'Court Conquerors', abbreviation: 'COCO', players: ['Rajasekhar Chintha','Venis V','Jilani Pathan','Bhaskar Boddireddy','Ali Mohamed','Sridhar K','Krishna Vennapusa'] }
+    ]
+  };
+
+  const TEAM_LOOKUP = new Map(TOURNAMENT.teams.map(t => [t.name, t]));
+  const ABBR_LOOKUP = new Map(TOURNAMENT.teams.map(t => [t.abbreviation.toUpperCase(), t]));
+  const TEAMS = TOURNAMENT.teams.map(t => t.name);
+
+  const escapeHTML = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const standingsBody = document.getElementById('standingsBody');
+  const historyBody = document.getElementById('historyBody');
+  const scoringForm = document.getElementById('scoringForm');
+  const scoreInput = document.getElementById('scoreInput');
+  const previewContent = document.getElementById('previewContent');
+
+  let matches = [];
+  let matchesLoaded = false;
+
+  // ==================== TEXT PARSER ====================
+
+  function parseScoreText(text) {
+    const results = [];
+    const errors = [];
+
+    const rawLines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) return { results: [], errors: [], team1: null, team2: null };
+
+    // First line should be "TEAM1 vs TEAM2" (abbreviations)
+    let team1 = null, team2 = null;
+    let startLine = 0;
+
+    const teamsMatch = rawLines[0].match(/^(\w+)\s+vs\.?\s+(\w+)$/i);
+    if (teamsMatch) {
+      const t1Abbr = teamsMatch[1].toUpperCase();
+      const t2Abbr = teamsMatch[2].toUpperCase();
+      team1 = ABBR_LOOKUP.get(t1Abbr);
+      team2 = ABBR_LOOKUP.get(t2Abbr);
+
+      if (!team1) errors.push(`Unknown team: ${teamsMatch[1]}`);
+      if (!team2) errors.push(`Unknown team: ${teamsMatch[2]}`);
+      if (team1 && team2 && team1.name === team2.name) errors.push('Teams must be different');
+
+      startLine = 1;
+    } else {
+      // Try to detect teams from winner abbreviations in the text
+      const abbrMatches = text.match(/\(won\)\s*(\w+)/gi);
+      if (abbrMatches) {
+        const foundAbbrs = new Set();
+        abbrMatches.forEach(m => {
+          const abbr = m.replace(/\(won\)\s*/i, '').toUpperCase();
+          if (ABBR_LOOKUP.has(abbr)) foundAbbrs.add(abbr);
+        });
+        const abbrList = Array.from(foundAbbrs);
+        if (abbrList.length >= 2) {
+          team1 = ABBR_LOOKUP.get(abbrList[0]);
+          team2 = ABBR_LOOKUP.get(abbrList[1]);
+        } else if (abbrList.length === 1) {
+          errors.push('Could not detect both teams. Add "TEAM1 vs TEAM2" on first line.');
+        }
+      }
+      if (!team1 || !team2) {
+        errors.push('First line should be: TEAM1 vs TEAM2 (e.g., SK vs RR)');
+        return { results: [], errors, team1: null, team2: null };
+      }
+    }
+
+    if (!team1 || !team2) return { results: [], errors, team1: null, team2: null };
+
+    const team1Abbr = team1.abbreviation.toUpperCase();
+    const team2Abbr = team2.abbreviation.toUpperCase();
+
+    // Merge continuation lines (scores on next line)
+    const mergedLines = [];
+    for (let i = startLine; i < rawLines.length; i++) {
+      const line = rawLines[i];
+      const startsWithType = /^(S|D\d?|Singles|Doubles\s*\d?)[\s:]/i.test(line);
+      const isScoreOnly = /^[\d\-\(\),\s]+\(won\)/i.test(line);
+
+      if (isScoreOnly && mergedLines.length > 0) {
+        mergedLines[mergedLines.length - 1] += ' ' + line;
+      } else if (startsWithType || line.match(/vs/i)) {
+        mergedLines.push(line);
+      }
+    }
+
+    // Track court numbers
+    let doublesCount = 0;
+    let singlesCount = 0;
+
+    for (let i = 0; i < mergedLines.length; i++) {
+      try {
+        const parsed = parseLine(mergedLines[i], team1, team2, team1Abbr, team2Abbr);
+        if (parsed) {
+          // Auto-assign court labels if not specified
+          if (parsed.type === 'doubles') {
+            doublesCount++;
+            if (!parsed.labelNum) parsed.label = `Doubles ${doublesCount}`;
+          } else {
+            singlesCount++;
+            if (!parsed.labelNum) parsed.label = `Singles ${singlesCount}`;
+          }
+          results.push(parsed);
+        }
+      } catch (err) {
+        errors.push(`Line ${i + 1 + startLine}: ${err.message}`);
+      }
+    }
+
+    return { results, errors, team1, team2 };
+  }
+
+  function parseLine(line, team1, team2, team1Abbr, team2Abbr) {
+    // Flexible type matching
+    const typeMatch = line.match(/^(S(?:ingles)?|D(?:oubles)?\s*(\d)?)[\s:]+/i);
+
+    let remainder = line;
+    let isDoubles = true;
+    let courtNum = null;
+    let labelNum = false;
+
+    if (typeMatch) {
+      const typeStr = typeMatch[1].toUpperCase();
+      isDoubles = typeStr.startsWith('D');
+      const numMatch = typeStr.match(/\d/);
+      if (numMatch) {
+        courtNum = numMatch[0];
+        labelNum = true;
+      }
+      remainder = line.slice(typeMatch[0].length).trim();
+    }
+
+    // Find winner indicator
+    const wonMatch = remainder.match(/\(won\)\s*(\w+)\s*\.?\s*$/i);
+    if (!wonMatch) {
+      throw new Error('Must include (won) followed by winner abbreviation');
+    }
+
+    const winnerAbbr = wonMatch[1].toUpperCase();
+    remainder = remainder.slice(0, wonMatch.index).trim();
+
+    // Determine winner
+    let winnerTeamNum = null;
+    const winnerTeam = ABBR_LOOKUP.get(winnerAbbr);
+
+    if (winnerAbbr === team1Abbr || (winnerTeam && winnerTeam.name === team1.name)) {
+      winnerTeamNum = 1;
+    } else if (winnerAbbr === team2Abbr || (winnerTeam && winnerTeam.name === team2.name)) {
+      winnerTeamNum = 2;
+    } else {
+      throw new Error(`Winner "${winnerAbbr}" doesn't match ${team1Abbr} or ${team2Abbr}`);
+    }
+
+    // Split by "vs"
+    const vsMatch = remainder.match(/\s+vs\.?\s+/i);
+    if (!vsMatch) {
+      throw new Error('Must include "vs" between players');
+    }
+
+    const leftSide = remainder.slice(0, vsMatch.index).trim();
+    const rightSide = remainder.slice(vsMatch.index + vsMatch[0].length).trim();
+
+    const leftPlayers = leftSide.split('/').map(p => p.trim()).filter(Boolean);
+
+    // Find where scores start
+    const scoreStartMatch = rightSide.match(/\s+(\d+-\d+)/);
+    if (!scoreStartMatch) {
+      throw new Error('Could not find scores (e.g., 4-0)');
+    }
+
+    const rightPlayersStr = rightSide.slice(0, scoreStartMatch.index).trim();
+    const scoresStr = rightSide.slice(scoreStartMatch.index).trim();
+    const rightPlayers = rightPlayersStr.split('/').map(p => p.trim()).filter(Boolean);
+
+    // Auto-detect singles/doubles
+    if (leftPlayers.length === 1 && rightPlayers.length === 1) {
+      isDoubles = false;
+    } else if (leftPlayers.length === 2 && rightPlayers.length === 2) {
+      isDoubles = true;
+    }
+
+    // Parse scores
+    const sets = parseScores(scoresStr);
+
+    let g1 = 0, g2 = 0, sets1 = 0, sets2 = 0;
+    const setsData = [];
+
+    for (let i = 0; i < sets.length; i++) {
+      const set = sets[i];
+      g1 += set.left;
+      g2 += set.right;
+
+      if (set.left > set.right) {
+        sets1++;
+      } else if (set.right > set.left) {
+        sets2++;
+      } else if (set.tiebreak) {
+        if (set.tiebreak.left > set.tiebreak.right) {
+          sets1++; g1++;
+        } else {
+          sets2++; g2++;
+        }
+      }
+
+      const setData = { set: i + 1, team1: set.left, team2: set.right };
+      if (set.tiebreak) {
+        setData.tieBreak = { team1: set.tiebreak.left, team2: set.tiebreak.right };
+      }
+      setsData.push(setData);
+    }
+
+    const courtLabel = isDoubles ? `Doubles ${courtNum || ''}`.trim() : `Singles ${courtNum || ''}`.trim();
+
+    return {
+      label: courtLabel,
+      labelNum,
+      type: isDoubles ? 'doubles' : 'singles',
+      players: { team1: leftPlayers, team2: rightPlayers },
+      sets: setsData,
+      g1, g2, sets1, sets2,
+      winnerTeamNum
+    };
+  }
+
+  function parseScores(scoresStr) {
+    const sets = [];
+    const scorePattern = /(\d+)-(\d+)(?:\((\d+)-(\d+)\))?/g;
+    let match;
+
+    while ((match = scorePattern.exec(scoresStr)) !== null) {
+      const set = { left: parseInt(match[1]), right: parseInt(match[2]) };
+      if (match[3] && match[4]) {
+        set.tiebreak = { left: parseInt(match[3]), right: parseInt(match[4]) };
+      }
+      sets.push(set);
+    }
+    return sets;
+  }
+
+  function updatePreview() {
+    const text = scoreInput.value;
+    if (!text.trim()) {
+      previewContent.innerHTML = '<div class="preview-empty">Enter scores above to see preview</div>';
+      return;
+    }
+
+    const { results, errors, team1, team2 } = parseScoreText(text);
+    let html = '';
+
+    if (errors.length > 0) {
+      html += errors.map(err => `<div class="preview-item error">❌ ${escapeHTML(err)}</div>`).join('');
+    }
+
+    if (team1 && team2 && results.length > 0) {
+      let totalG1 = 0, totalG2 = 0, totalSets1 = 0, totalSets2 = 0;
+      let courtsWon1 = 0, courtsWon2 = 0;
+
+      results.forEach(r => {
+        totalG1 += r.g1;
+        totalG2 += r.g2;
+        totalSets1 += r.sets1;
+        totalSets2 += r.sets2;
+        if (r.winnerTeamNum === 1) courtsWon1++;
+        else if (r.winnerTeamNum === 2) courtsWon2++;
+      });
+
+      const winner = courtsWon1 > courtsWon2 ? team1.name : (courtsWon2 > courtsWon1 ? team2.name : 'TIE');
+
+      html += `<div class="preview-item total">
+        📊 ${team1.name} ${totalG1}-${totalG2} ${team2.name} (Sets: ${totalSets1}-${totalSets2}) → Courts Won: ${courtsWon1}-${courtsWon2} → Winner: ${winner}
+      </div>`;
+
+      results.forEach(r => {
+        const winnerName = r.winnerTeamNum === 1 ? team1.abbreviation : team2.abbreviation;
+        const setsDisplay = r.sets.map(s => {
+          let str = `${s.team1}-${s.team2}`;
+          if (s.tieBreak) str += `(${s.tieBreak.team1}-${s.tieBreak.team2})`;
+          return str;
+        }).join(', ');
+
+        html += `<div class="preview-item valid">
+          ✅ <strong>${r.label}:</strong> ${r.players.team1.join('/')} vs ${r.players.team2.join('/')}
+          → ${setsDisplay} (${r.g1}-${r.g2}, won ${winnerName})
+        </div>`;
+      });
+    }
+
+    previewContent.innerHTML = html || '<div class="preview-empty">No valid data found</div>';
+  }
+
+  scoreInput.addEventListener('input', updatePreview);
+
+  // ==================== FIREBASE HANDLERS ====================
+
+  function upgradeMatch(m){
+    if(!m || !m.t1 || !m.t2) return null;
+    const g1 = Number(m.g1), g2 = Number(m.g2);
+    if(!Number.isFinite(g1) || !Number.isFinite(g2)) return null;
+    const ts = Number(m.ts) || Date.now();
+    const upgraded = { t1:m.t1, t2:m.t2, g1, g2, win:m.win, ts, s1:Number(m.s1)||0, s2:Number(m.s2)||0 };
+    if(Array.isArray(m.lines)) upgraded.lines = m.lines;
+    if(m.dreambreaker) upgraded.dreambreaker = m.dreambreaker;
+    return upgraded;
+  }
+
+  function handleSnapshot(snapshot){
+    const data = snapshot.val();
+    const list = [];
+    if(data){
+      for(const [id, entry] of Object.entries(data)){
+        const u = upgradeMatch(entry);
+        if(u){ u.id = id; list.push(u); }
+      }
+    }
+    matches = list.sort((a,b)=>b.ts - a.ts);
+    matchesLoaded = true;
+    renderAll();
+  }
+
+  matchesRef.on('value', handleSnapshot, err => {
+    console.error('Firebase error', err);
+    matches = [];
+    matchesLoaded = true;
+    renderAll();
+  });
+
+  // ==================== UI HANDLERS ====================
+
+  document.getElementById('menuBtn').addEventListener('click', () => {
+    document.getElementById('siteNav').classList.toggle('open');
+  });
+
+  document.getElementById('unlockBtn').addEventListener('click', () => {
+    if(document.getElementById('accessCode').value.trim() === 'KOCPO#2'){
+      scoringForm.classList.remove('hidden');
+      document.getElementById('accessCode').value = '';
+      alert('✅ Scoring unlocked');
+    } else {
+      alert('❌ Invalid code');
+    }
+  });
+
+  document.getElementById('lockBtn').addEventListener('click', () => {
+    scoringForm.classList.add('hidden');
+  });
+
+  document.getElementById('submitBtn').addEventListener('click', async () => {
+    if(!matchesLoaded) return alert('Please wait for data to load.');
+
+    const { results, errors, team1, team2 } = parseScoreText(scoreInput.value);
+
+    if(errors.length > 0) return alert('⚠️ Fix errors:\n' + errors.join('\n'));
+    if(!team1 || !team2) return alert('⚠️ Could not detect teams.');
+    if(results.length === 0) return alert('⚠️ No valid scores found.');
+
+    let totalG1 = 0, totalG2 = 0, totalSets1 = 0, totalSets2 = 0;
+    let courtsWon1 = 0, courtsWon2 = 0;
+
+    results.forEach(r => {
+      totalG1 += r.g1;
+      totalG2 += r.g2;
+      totalSets1 += r.sets1;
+      totalSets2 += r.sets2;
+      if (r.winnerTeamNum === 1) courtsWon1++;
+      else if (r.winnerTeamNum === 2) courtsWon2++;
+    });
+
+    const winner = courtsWon1 > courtsWon2 ? team1.name : (courtsWon2 > courtsWon1 ? team2.name : null);
+    if(!winner) return alert('⚠️ Match is tied. Check scores.');
+
+    // MODIFIED: Convert all player names to UPPERCASE before saving
+    const lines = results.map(r => ({
+      label: r.label, type: r.type, g1: r.g1, g2: r.g2,
+      sets: r.sets, setWins: { team1: r.sets1, team2: r.sets2 },
+      players: {
+        team1: r.players.team1.map(p => p.toUpperCase()),
+        team2: r.players.team2.map(p => p.toUpperCase())
+      }
+    }));
+
+    const record = {
+      t1: team1.name, t2: team2.name,
+      g1: totalG1, g2: totalG2,
+      s1: totalSets1, s2: totalSets2,
+      win: winner, ts: Date.now(), lines
+    };
+
+    if(!(await guardWriteAccess())) return;
+
+    try {
+      await matchesRef.push(record);
+      scoreInput.value = '';
+      updatePreview();
+      alert(`✅ Saved: ${team1.name} ${totalG1}-${totalG2} ${team2.name}\nCourts Won: ${courtsWon1}-${courtsWon2}\nWinner: ${winner}`);
+    } catch(err){
+      alert('❌ Save failed: ' + err.message);
+    }
+  });
+
+  document.getElementById('clearInputBtn').addEventListener('click', () => {
+    scoreInput.value = '';
+    updatePreview();
+  });
+
+  document.getElementById('undoBtn').addEventListener('click', async () => {
+    if(matches.length === 0) return alert('Nothing to undo.');
+    const last = matches[0];
+    if(!confirm(`Undo: ${last.t1} ${last.g1}-${last.g2} ${last.t2}?`)) return;
+    if(!(await guardWriteAccess())) return;
+    try { await matchesRef.child(last.id).remove(); }
+    catch(err){ alert('❌ Failed: ' + err.message); }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', async () => {
+    if(matches.length === 0) return alert('Nothing to clear.');
+    if(!confirm('Clear ALL results?')) return;
+    if(!(await guardWriteAccess())) return;
+    try { await matchesRef.remove(); }
+    catch(err){ alert('❌ Failed: ' + err.message); }
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(matches.map(({id,...r})=>r),null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'koc-matches.json';
+    a.click();
+  });
+
+  document.getElementById('importFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if(!Array.isArray(data)) throw new Error('Invalid format');
+        if(!(await guardWriteAccess())) return;
+        const updates = {};
+        data.forEach(entry => { updates[matchesRef.push().key] = upgradeMatch(entry); });
+        await matchesRef.set(updates);
+        alert('✅ Imported');
+      } catch(err){ alert('❌ Import failed: ' + err.message); }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  // ==================== RENDERING ====================
+
+  function computeStandings(){
+    const stats = {};
+    TEAMS.forEach(n => stats[n] = {
+      team:n, matches:0, wins:0, losses:0,
+      setsFor:0, setsAgainst:0, gamesFor:0, gamesAgainst:0, points:0
+    });
+    for(const m of matches){
+      if(!stats[m.t1] || !stats[m.t2]) continue;
+      stats[m.t1].matches++; stats[m.t2].matches++;
+      stats[m.t1].gamesFor += m.g1; stats[m.t1].gamesAgainst += m.g2;
+      stats[m.t2].gamesFor += m.g2; stats[m.t2].gamesAgainst += m.g1;
+      stats[m.t1].setsFor += m.s1||0; stats[m.t1].setsAgainst += m.s2||0;
+      stats[m.t2].setsFor += m.s2||0; stats[m.t2].setsAgainst += m.s1||0;
+      if(m.win === m.t1){ stats[m.t1].wins++; stats[m.t2].losses++; stats[m.t1].points++; }
+      else if(m.win === m.t2){ stats[m.t2].wins++; stats[m.t1].losses++; stats[m.t2].points++; }
+    }
+    Object.values(stats).forEach(s => {
+      s.setDiff = s.setsFor - s.setsAgainst;
+      s.gameDiff = s.gamesFor - s.gamesAgainst;
+    });
+    return Object.values(stats).sort((a,b)=>
+      (b.points-a.points)||(b.setDiff-a.setDiff)||(b.setsFor-a.setsFor)||
+      (b.gameDiff-a.gameDiff)||(b.gamesFor-a.gamesFor)||a.team.localeCompare(b.team)
+    );
+  }
+
+  function renderStandings(){
+    if(!matchesLoaded){
+      standingsBody.innerHTML = '<tr><td colspan="12" class="center-cell">Loading...</td></tr>';
+      return;
+    }
+    const rows = computeStandings();
+    if(matches.length === 0){
+      standingsBody.innerHTML = '<tr><td colspan="12" class="center-cell" style="color:var(--muted);">No results yet.</td></tr>';
+      return;
+    }
+    standingsBody.innerHTML = rows.map((r,i)=>`
+      <tr class="${i<4?'qualified':''}">
+        <td class="rank-cell" data-label="Rank">${i+1}</td>
+        <td class="team-cell" data-label="Team">${r.team}</td>
+        <td class="center-cell" data-label="Matches">${r.matches}</td>
+        <td class="center-cell" data-label="Wins">${r.wins}</td>
+        <td class="center-cell" data-label="Losses">${r.losses}</td>
+        <td class="center-cell" data-label="Sets W">${r.setsFor}</td>
+        <td class="center-cell" data-label="Sets L">${r.setsAgainst}</td>
+        <td class="center-cell" data-label="Set Diff">${r.setDiff}</td>
+        <td class="center-cell" data-label="Games W">${r.gamesFor}</td>
+        <td class="center-cell" data-label="Games L">${r.gamesAgainst}</td>
+        <td class="center-cell" data-label="Game Diff">${r.gameDiff}</td>
+        <td class="points-cell" data-label="Points">${r.points}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderHistory(){
+    if(!matchesLoaded){
+      historyBody.innerHTML = '<tr><td colspan="6" class="center-cell">Loading...</td></tr>';
+      return;
+    }
+    if(matches.length === 0){
+      historyBody.innerHTML = '<tr><td colspan="6" class="center-cell" style="color:var(--muted);">No matches yet.</td></tr>';
+      return;
+    }
+    historyBody.innerHTML = matches.map((m,idx)=>{
+      const setsLabel = (m.s1+m.s2)>0 ? ` (${m.s1}-${m.s2} sets)` : '';
+      let breakdown = '—';
+      if(Array.isArray(m.lines) && m.lines.length){
+        const parts = m.lines.map(l => {
+          const scores = (l.sets||[]).map(s => {
+            let str = `${s.team1}-${s.team2}`;
+            if(s.tieBreak) str += `(${s.tieBreak.team1}-${s.tieBreak.team2})`;
+            return str;
+          }).join(', ');
+          const players = l.players ?
+            `<div class="line-players"><span>${m.t1}: ${(l.players.team1||[]).join('/')}</span><span>${m.t2}: ${(l.players.team2||[]).join('/')}</span></div>` : '';
+          return `<div class="history-line"><strong>${escapeHTML(l.label)}:</strong> ${l.g1}-${l.g2} (${scores})${players}</div>`;
+        }).join('');
+        breakdown = `<div class="history-breakdown-wrapper" data-breakdown-wrapper>
+          <button type="button" class="history-toggle" aria-expanded="false">Show breakdown</button>
+          <div class="history-breakdown">${parts}</div>
+        </div>`;
+      }
+      return `<tr>
+        <td class="rank-cell" data-label="#">${matches.length-idx}</td>
+        <td class="team-cell" data-label="Teams">${m.t1} vs ${m.t2}</td>
+        <td class="center-cell" data-label="Score">${m.g1}-${m.g2}${setsLabel}</td>
+        <td class="points-cell" data-label="Winner">${m.win}</td>
+        <td data-label="Breakdown">${breakdown}</td>
+        <td class="center-cell" data-label="Date">${new Date(m.ts).toLocaleString()}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  historyBody.addEventListener('click', e => {
+    const toggle = e.target.closest('.history-toggle');
+    if(!toggle) return;
+    const panel = toggle.nextElementSibling;
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!expanded));
+    toggle.textContent = expanded ? 'Show breakdown' : 'Hide breakdown';
+    panel.classList.toggle('open', !expanded);
+  });
+
+  function renderAll(){ renderStandings(); renderHistory(); }
+  renderAll();
+</script>
+</body>
+</html>

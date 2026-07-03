@@ -1,0 +1,36 @@
+{
+  "summary": "End-to-end frontend testing of KOC Season 2 PWA on mobile viewport (390x844). All 17 review-request items verified successfully against live Firebase RTDB (project koc2-20fb8). Public teams page seeds & renders all 16 teams; bottom nav adapts per role (guest/team/admin); admin & team-captain logins work (wrong passwords show errors); admin Teams/Settings/Passwords tabs all functional; team edits persist; admin password change persists and old session continues working until logout; team captain forced to own team; opponent dropdown excludes own team; fuzzy player-name matching (exact ✓, fuzzy suggestion 80% Madhu/Madu, no-match ✗) works; bad-name submission blocked with descriptive errors; valid 3-court score submission writes to Firebase, appears in History sorted by recency, and updates Standings (SK now #1 with W=1 +3 sets +6 games, RR last with L=1 -3 -6); admin can delete matches (history-empty shown after delete); manifest.json is valid (200); service worker registers (1 registration); no horizontal scroll on 390px viewport; localStorage session persists across navigation/reloads.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Firebase Anonymous Auth",
+        "issue": "signInAnonymously() consistently fails with auth/network-request-failed (identitytoolkit.googleapis.com unreachable from the preview container). RTDB reads/writes still succeed because the project's database rules currently allow public access. If rules are later tightened to require auth.uid, all writes (score entry, admin edits, password change, match delete) will silently break. Recommend either (a) using REST PATCH with a signed token, (b) configuring Firebase project to accept the preview origin, or (c) noting in deployment docs that database rules must remain open or auth must be enabled in production environment.",
+        "affected_selectors": ["submit-score-btn", "admin-team-*-save", "admin-save-pwd-btn", "match-delete-*"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "Match History detail toggle", "issues": ["Toggle opens but only Singles 1 detail line was visibly rendered on mobile viewport; Doubles 1 and Doubles 2 court breakdowns may need to be confirmed visible (was below fold in screenshot). Low priority."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Investigate Firebase anonymous auth failure — confirm production Firebase RTDB rules either permit unauthenticated writes intentionally or fix anonymous auth so rules can be tightened.",
+    "(Optional) Suppress React Router v6 future-flag console warnings by opting in (v7_startTransition, v7_relativeSplatPath)."
+  ],
+  "critical_code_review_comments": [
+    "firebase.js: ensureAuth() swallows the auth error silently and writes are still attempted. If RTDB rules require auth in future, writes will fail without surfacing a clear UX error. Consider showing a banner or retry path.",
+    "ScoreEntry.js: validation aggregates errors using \\n joiner — good. But the same error block also reports 'empty player N' for the not-typed-into fields when only one bad field was provided. Could be tightened to only report fields the user touched.",
+    "Admin.js / initialTeams.js: team passwords are stored in plaintext in RTDB and listed under the Passwords tab. Acceptable for an internal tournament app but worth flagging.",
+    "AuthContext.js: session lives only in localStorage with no expiry — captains stay logged in indefinitely. Consider an optional TTL for shared devices."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (17/17 scenarios)"},
+  "test_credentials": "Admin: KOCPO#ADMIN. Team captain example used: Spin Kings (team3) password KOCSK#2. Full list in /app/memory/test_credentials.md.",
+  "seed_data_creation": "Created 1 test match (Spin Kings 3-0 Rally Royals, 12-6 games) and deleted it via admin Delete button at the end of the run, leaving history empty. Admin pwd and T16 name were temporarily modified then reverted to original values. No leftover test data in Firebase.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All major flows are working against live Firebase. If revisiting: be aware that the Firebase project rules currently allow public writes (intentional for now). The container cannot reach identitytoolkit.googleapis.com so signInAnonymously will always fail, but this does NOT block RTDB read/write today. data-testids in BottomNav, Login, Admin, ScoreEntry, History, Standings all match the spec in the review request.",
+  "rca of the issue": "N/A — no functional bugs found. The single notable finding is environmental: anonymous Firebase Auth fails because identitytoolkit.googleapis.com is unreachable from the preview container; the app continues to work only because RTDB rules don't currently require auth."
+}

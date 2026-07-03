@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KOC Season 2 – Tournament Rules</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --bg1:#667eea;--bg2:#764ba2;--ink:#1a202c;--muted:#718096;--card:#fff;--ring:#e2e8f0;--accent:#22d3ee;
+    }
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      min-height:100vh;color:var(--ink);
+      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    }
+    .header{position:sticky;top:0;z-index:50;backdrop-filter:blur(10px);}
+    .header-bar{display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto;padding:.75rem 1rem;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.08);}
+    .brand{display:flex;align-items:center;gap:.5rem;}
+    .brand strong{font-size:1.15rem;background:linear-gradient(135deg,var(--bg1),var(--bg2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+    .menu-btn{display:none;border:0;background:transparent;font-size:1.5rem;padding:.25rem .5rem;cursor:pointer;}
+    nav.nav{max-width:1100px;margin:.35rem auto 0;display:flex;gap:.5rem;padding:.5rem 1rem;background:rgba(255,255,255,.9);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+    .nav a{text-decoration:none;color:#4a5568;font-weight:600;padding:.6rem 1rem;border-radius:8px;white-space:nowrap;}
+    .nav a[aria-current="page"],.nav a:hover{color:#fff;background:linear-gradient(135deg,var(--bg1),var(--bg2));}
+    .container{max-width:1100px;margin:1rem auto 2rem;padding:0 1rem;}
+    .card{background:var(--card);border-radius:16px;box-shadow:0 4px 10px rgba(0,0,0,.1);padding:1rem;}
+    .section-title{text-align:center;font-size:1.2rem;font-weight:900;margin:.25rem 0 .5rem;}
+    .section-sub{text-align:center;color:var(--muted);font-size:.95rem;margin-bottom:1rem;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;}
+    .rule{background:#fff;border:2px solid var(--ring);border-radius:12px;padding:1rem;}
+    .rule:hover{transform:translateY(-2px);transition:.2s;box-shadow:0 8px 16px rgba(0,0,0,.12);border-color:var(--bg1);}
+    .rule-head{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem;padding-bottom:.5rem;border-bottom:2px solid var(--ring);}
+    .rule-emoji{font-size:1.4rem;}
+    .rule-title{font-weight:900;font-size:1.05rem;}
+    .item{display:flex;gap:.6rem;align-items:flex-start;background:#f8fafc;border-left:4px solid var(--bg1);border-radius:10px;padding:.6rem .7rem;margin:.5rem 0;}
+    .item .i{font-size:1.1rem;flex-shrink:0;}
+    .item .lbl{font-weight:900;color:#2d3748;}
+    .item .val{color:#4a5568;}
+    .note{text-align:center;font-weight:800;color:#744210;background:#fde68a;border:2px solid #fbbf24;border-radius:12px;padding:.6rem .8rem;margin-top:.6rem;}
+    .ok{text-align:center;font-weight:900;color:#22543d;background:#c6f6d5;border:2px solid #9ae6b4;border-radius:12px;padding:.6rem .8rem;margin-top:.6rem;}
+    .playoff{margin-top:1rem;}
+    .playoff h2{text-align:center;font-size:1.3rem;font-weight:900;margin-bottom:1rem;color:#fff;background:linear-gradient(135deg,var(--bg1),var(--bg2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.75rem;}
+    .p-card{background:#fff;border:2px solid var(--ring);border-radius:12px;padding:1rem;}
+    .p-card:hover{transform:translateY(-2px);transition:.2s;box-shadow:0 8px 16px rgba(0,0,0,.12);border-color:var(--bg1);}
+    .p-head{background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#fff;border-radius:8px;padding:.5rem .75rem;font-weight:900;text-align:center;margin-bottom:.6rem;}
+    .p-card.final .p-head{background:linear-gradient(135deg,#d69e2e,#b7791f);}
+    .p-date{text-align:center;font-weight:700;color:#4a5568;margin-bottom:.4rem;}
+    .p-match{text-align:center;font-weight:900;}
+    .footer{margin-top:1rem;}
+    .motto{background:linear-gradient(90deg,#06b6d4,#8b5cf6,#22c55e,#f43f5e);background-size:300% 300%;animation:hueflow 6s ease-in-out infinite;color:#fff;text-align:center;font-weight:900;border-radius:12px;padding:1rem;box-shadow:0 4px 12px rgba(0,0,0,.12);}
+    @keyframes hueflow{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
+    @media(max-width:768px){.menu-btn{display:block;}nav.nav{display:none;flex-direction:column;}nav.nav.open{display:flex;}}
+  </style>
+</head>
+<body>
+<header class="header">
+  <div class="header-bar">
+    <div class="brand"><i>🏆</i><strong>KOC Season 2</strong></div>
+    <button id="menuBtn" class="menu-btn">☰</button>
+  </div>
+  <nav id="siteNav" class="nav">
+    <a href="index.html">👥 Teams</a>
+    <a href="schedule.html">📅 Schedule</a>
+    <a href="rules.html" aria-current="page">📋 Rules</a>
+    <a href="scorecard.html">📊 Standings</a>
+    <a href="playerstats.html">🎾 Matchups</a>
+  </nav>
+</header>
+<main class="container">
+  <section class="card">
+    <h2 class="section-title">KOC Season 2 – TOURNAMENT RULES & FORMAT 🏆</h2>
+    <p class="section-sub">📘 Complete Guidelines</p>
+  </section>
+  <section class="grid" style="margin-top:1rem;">
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">⚙️</span><div class="rule-title">PLAYER MATCH LIMITS</div></div><div class="item"><span class="i">👥</span><div><div class="lbl">Doubles Combo(Round-Robin only)</div><div class="val">Max 3 days (6 matches). A specific Player1–Player2 pairing is  limited to 3 days.</div></div></div><div class="item"><span class="i">🎾</span><div><div class="lbl">Singles Matches(Round-Robin only)</div><div class="val">A Player can play Max 3 matches.</div></div></div><div class="item"><span class="i">📊</span><div><div class="lbl">Overall (Round-Robin only)</div><div class="val">Max 6 days total across Singles + Doubles.</div></div></div><div class="note">⚠️ Violation: Zero points for that match. (Caps apply only to round-robin matches.)</div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">🏁</span><div class="rule-title">COMPETITION RULES</div></div><div class="item"><span class="i">👥</span><div><div class="lbl">Team</div><div class="val">7 players.</div></div></div><div class="item"><span class="i">❗</span><div><div class="lbl">Minimum Participation</div><div class="val">Each player must play 3 matches or the team is ineligible for playoffs.</div></div></div><div class="item"><span class="i">🩺</span><div><div class="lbl">Injury Replacement (Committee)</div><div class="val">Requires approval from captains & Uma.</div></div></div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">🏆</span><div class="rule-title">SCORING</div></div><div class="ok">✅ Win: Win 3 out of 5 lines on a match day → 1 points.</div><div class="note">❌ Loss: 0 points.</div><div class="item"><span class="i">📊</span><div><div class="lbl">Tiebreak (two teams level on points)</div><div class="val">Points → Sets → Games → Head‑to‑Head.</div></div></div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">📅</span><div class="rule-title">SCHEDULING</div></div><div class="item"><span class="i">🕒</span><div><div class="lbl">Match Days</div><div class="val">Friday & Saturday.</div></div></div><div class="item"><span class="i">🤝</span><div><div class="lbl">Reschedule</div><div class="val">Both captains must agree. Can be played any weekday before Fri/Sat schedule.</div></div></div><div class="item"><span class="i">🚫</span><div><div class="lbl">Change Deadline</div><div class="val">No changes after the scheduled day.</div></div></div><div class="item"><span class="i">📣</span><div><div class="lbl">Score Reporting</div><div class="val">If both teams fail to post scores before Sunday morning → 0 points for both. Winning captain must post scores.</div></div></div><div class="note">⚠️ No‑show = Forfeit.</div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">🧾</span><div class="rule-title">SPECIAL RULES & GUIDELINES</div></div><div class="item"><span class="i">🏟️</span><div><div class="lbl">Format</div><div class="val">9 Teams • Round Robin.</div></div></div><div class="item"><span class="i">🗓️</span><div><div class="lbl">Duration</div><div class="val">Oct 17 – Jan 31 (14 weeks).</div></div></div><div class="item"><span class="i">🎾</span><div><div class="lbl">Matches / Week</div><div class="val">4 lines per week (2 Fri, 2 Sat).</div></div></div><div class="item"><span class="i">🆓</span><div><div class="lbl">Bye</div><div class="val">One team per week.</div></div></div><div class="item"><span class="i">🛑</span><div><div class="lbl">Breaks</div><div class="val">Nov 28–29 • Dec 26–27 • Jan 2–3.</div></div></div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">📋</span><div class="rule-title">MATCH DAY PROTOCOL</div></div><div class="item"><span class="i">⏰</span><div><div class="val">Arrive 15 minutes early.</div></div></div><div class="item"><span class="i">📄</span><div><div class="val">Exchange lineups before play.</div></div></div><div class="item"><span class="i">🚫</span><div><div class="val">No lineup changes once started.</div></div></div><div class="item"><span class="i">🎯</span><div><div class="val">All lines must finish the same day.</div></div></div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">🏥</span><div class="rule-title">INJURIES</div></div><div class="item"><span class="i">📃</span><div><div class="lbl">League (Round‑Robin)</div><div class="val">Replace with a similar UTR player; requires Committee approval (captains & Uma).</div></div></div><div class="item"><span class="i">🏅</span><div><div class="lbl">Playoffs</div><div class="val">Only if 2+ players are ruled out; requires Committee approval (captains & Uma).</div></div></div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">⚡</span><div class="rule-title">NO‑AD SCORING</div></div><div class="item"><span class="i">➡️</span><div><div class="val">Deciding point at deuce.</div></div></div><div class="item"><span class="i">🎯</span><div><div class="val">Receiver chooses side (no 2‑point advantage).</div></div></div></article>
+    <article class="rule"><div class="rule-head"><span class="rule-emoji">🤝</span><div class="rule-title">CONDUCT & FAIR PLAY</div></div><div class="item"><span class="i">🎾</span><div><div class="val">Players make their own line calls.</div></div></div><div class="item"><span class="i">⚖️</span><div><div class="val">Disputes → Committee decision.</div></div></div><div class="item"><span class="i">🙌</span><div><div class="val">Respectful behavior is mandatory.</div></div></div><div class="note">⚠️ Misconduct = Penalty.</div></article>
+  </section>
+  <section class="playoff">
+    <h2>🏆 Playoff Format</h2>
+    <div style="text-align:center;font-weight:600;">Top 4 Teams Qualify | Tiebreak: Points → Sets → Games → H2H</div>
+    <div class="pgrid">
+      <div class="p-card"><div class="p-head">Qualifier 1</div><div class="p-date">Friday, Jan 16 • 5:00 PM</div><div class="p-match">#1 vs #2</div></div>
+      <div class="p-card"><div class="p-head">Eliminator</div><div class="p-date">Saturday, Jan 17 • 5:00 PM<</div><div class="p-match">#3 vs #4</div></div>
+      <div class="p-card"><div class="p-head">Qualifier 2</div><div class="p-date">Friday, Jan 23 • 5:00 PM</div><div class="p-match">Q1 Loser vs Elim Winner</div></div>
+      <div class="p-card final"><div class="p-head">Championship Final</div><div class="p-date">Saturday, Jan 31 • 5:00 PM</div><div class="p-match">Q1 Winner vs Q2 Winner</div></div>
+    </div>
+  </section>
+  <footer class="footer">
+    <div class="motto">😏 Play Fair, Win Big, Party Hard! ✨ Play, Repeat, Celebrate! 🎾🏆🎾🎉</div>
+  </footer>
+</main>
+<script>
+  document.getElementById('menuBtn').addEventListener('click',()=>{document.getElementById('siteNav').classList.toggle('open');});
+</script>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prosper Kings of the Court Season 2 – Teams</title>
+    <style>
+        /* ===== Theme ===== */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+          --bg1:#667eea; --bg2:#764ba2; --ink:#1a202c; --muted:#718096;
+          --card:#ffffff; --ring:#e2e8f0;
+        }
+        html,body { height:100%; }
+        body {
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+          background:linear-gradient(135deg,var(--bg1),var(--bg2));
+          min-height:100vh; color:var(--ink);
+          -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+        }
+
+        /* ===== Header & Nav ===== */
+        .header { position:sticky; top:0; z-index:50; backdrop-filter:blur(10px); }
+        .header-bar {
+          display:flex; align-items:center; justify-content:space-between;
+          max-width:1100px; margin:0 auto; padding:.75rem 1rem;
+          background:rgba(255,255,255,.95); box-shadow:0 2px 8px rgba(0,0,0,.08);
+        }
+        .brand { display:flex; align-items:center; gap:.5rem; }
+        .brand strong {
+          font-size:1.15rem; font-weight:900;
+          background:linear-gradient(135deg,var(--bg1),var(--bg2));
+          -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+        }
+        .menu-btn { display:none; border:0; background:transparent; font-size:1.5rem; cursor:pointer; }
+        nav.nav {
+          max-width:1100px; margin:.35rem auto 0; display:flex; gap:.5rem; padding:.5rem 1rem;
+          background:rgba(255,255,255,.9); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08);
+        }
+        .nav a {
+          text-decoration:none; color:#4a5568; font-weight:700;
+          padding:.6rem 1rem; border-radius:8px; white-space:nowrap;
+        }
+        .nav a[aria-current="page"], .nav a:hover {
+          color:#fff; background:linear-gradient(135deg,var(--bg1),var(--bg2));
+        }
+
+        /* ===== Layout ===== */
+        .container { max-width:1100px; margin:1rem auto 2rem; padding:0 1rem; }
+        .page-header {
+          background:#fff; border-radius:16px; padding:1.25rem 1.5rem; margin-bottom:1rem;
+          box-shadow:0 2px 8px rgba(0,0,0,.08); border-left:4px solid #22d3ee; text-align:center;
+        }
+        .page-header h1 { font-size:1.9rem; margin-bottom:.25rem; }
+        .page-header p { color:var(--muted); }
+
+        /* ===== Teams Grid ===== */
+        .teams-grid {
+          display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+          gap:.9rem;
+        }
+        .team-card {
+          background:#fff; border-radius:12px; overflow:hidden;
+          box-shadow:0 2px 8px rgba(0,0,0,.08); transition:.2s;
+        }
+        .team-card:hover { transform:translateY(-2px); box-shadow:0 8px 16px rgba(0,0,0,.12); }
+        .team-header {
+          padding:.9rem; color:#fff; display:flex; justify-content:center; align-items:center; text-align:center;
+        }
+        .team-header h2 { font-size:1.1rem; margin:0; white-space:nowrap; }
+
+        /* Color Bands */
+        .team-1{background:linear-gradient(135deg,#ef4444,#dc2626);}
+        .team-2{background:linear-gradient(135deg,#3b82f6,#2563eb);}
+        .team-3{background:linear-gradient(135deg,#10b981,#059669);}
+        .team-4{background:linear-gradient(135deg,#f59e0b,#d97706);}
+        .team-5{background:linear-gradient(135deg,#8b5cf6,#7c3aed);}
+        .team-6{background:linear-gradient(135deg,#ec4899,#db2777);}
+        .team-7{background:linear-gradient(135deg,#14b8a6,#0d9488);}
+        .team-8{background:linear-gradient(135deg,#6366f1,#4f46e5);}
+        .team-9{background:linear-gradient(135deg,#f97316,#ea580c);}
+
+        /* ===== Players ===== */
+        .player-list{list-style:none;}
+        .player-list li {
+          padding:.55rem; border-bottom:1px solid var(--ring);
+          display:flex; align-items:center; gap:.5rem;
+        }
+        .player-list li:last-child{border-bottom:none;}
+        .player-list li.captain{background:#fef3c7; font-weight:700;}
+        .player-number {
+          background:#22d3ee; color:#fff; min-width:24px; height:24px;
+          border-radius:50%; display:flex; align-items:center; justify-content:center;
+          font-weight:900; font-size:.75rem; flex-shrink:0;
+        }
+        .player-name{flex:1; font-size:.92rem;}
+
+        /* ===== Mobile ===== */
+        @media(max-width:768px){
+          .menu-btn{display:block;}
+          nav.nav{display:none; flex-direction:column;}
+          nav.nav.open{display:flex;}
+          .page-header h1{font-size:1.5rem;}
+          .team-header h2{font-size:1rem; white-space:normal;}
+        }
+    </style>
+</head>
+<body>
+<header class="header">
+    <div class="header-bar">
+        <div class="brand"><i>🏆</i><strong>KOC Season 2</strong></div>
+        <button id="menuBtn" class="menu-btn">☰</button>
+    </div>
+    <nav id="siteNav" class="nav">
+        <a href="index.html" aria-current="page">👥 Teams</a>
+        <a href="schedule.html">📅 Schedule</a>
+        <a href="rules.html">📋 Rules</a>
+        <a href="scorecard.html">📊 Standings</a>
+        <a href="playerstats.html">🎾 Matchups</a>
+
+
+    </nav>
+</header>
+
+<main class="container">
+    <section class="page-header">
+        <h1>Tournament Teams</h1>
+        <p>9 teams with 7 players each competing for the championship</p>
+    </section>
+
+    <section class="teams-grid">
+
+        <!-- Rally Royals -->
+        <div class="team-card">
+            <div class="team-header team-1"><h2>Rally Royals – RR</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Yogesh</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Srinivaasan Arumugam Sampath</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Charan Macharla</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Kalam Shaik</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Sandeep Gengineri</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Chandrakant Dharme</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Vasu Gandhi</span></li>
+            </ul>
+        </div>
+
+        <!-- Karna's Crusaders -->
+        <div class="team-card">
+            <div class="team-header team-2"><h2>Karna's Crusaders – KC</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Srikanth</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Vibhor Sharma</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Malla Cheerke</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Anshul Goyal</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Srinidhi Kulkarni</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Lloyd Kumar</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Dinkar Bhardwaj</span></li>
+            </ul>
+        </div>
+
+        <!-- Spin Kings -->
+        <div class="team-card">
+            <div class="team-header team-3"><h2>Spin Kings – SK</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Uma V</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Madhu</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Noufal Mohamed</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Kanak Periasamy</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Fayaz</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">KP Krishna</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Rajasekhar Mangalampally</span></li>
+            </ul>
+        </div>
+
+        <!-- KOC Challengers -->
+        <div class="team-card">
+            <div class="team-header team-4"><h2>KOC Challengers – KOCC</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Narayan Prasad</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Nivas Nazeer</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Ravi Sengodan</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Damu Palavali</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Sarat Edara</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Vidya Sagar Reddy</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Sudhakar Nallapati</span></li>
+            </ul>
+        </div>
+
+        <!-- Rally Squad -->
+        <div class="team-card">
+            <div class="team-header team-5"><h2>Rally Squad – RS</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Manish Jangid</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Srinivas Y</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Trinadh Cheepilla</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Biju Koshy</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Jitender Kumar</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Ritesh Kumar</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Dinesh Timmareddy</span></li>
+            </ul>
+        </div>
+
+        <!-- Agni Aces -->
+        <div class="team-card">
+            <div class="team-header team-6"><h2>Agni Aces – AA</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Vinod Aripaka</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Gopi Guru</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Venu Servepalli</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Nazeer Mohammed</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Naveenkumar Mohanram</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Nizam Karimudeen</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Ratnesh Sinha</span></li>
+            </ul>
+        </div>
+
+        <!-- Chill Titans -->
+        <div class="team-card">
+            <div class="team-header team-7"><h2>Chill Titans – CT</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Satish Orugunta</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Gokul R</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Prashanth Tiramareddi</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Jaweed</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Ram Kantheti</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Durga</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Hari Mothukuri</span></li>
+            </ul>
+        </div>
+
+        <!-- Mega Lions -->
+        <div class="team-card">
+            <div class="team-header team-8"><h2>Mega Lions – ML</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Anil Kunda</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Mirza H</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Raj Chejerla</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Mohan Koripuri</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Venky Dh</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Rajasekhar Karru</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Nagarjuna Saladi</span></li>
+            </ul>
+        </div>
+
+        <!-- Court Conquerors -->
+        <div class="team-card">
+            <div class="team-header team-9"><h2>Court Conquerors – CC</h2></div>
+            <ul class="player-list">
+                <li class="captain"><span class="player-number">🏆</span><span class="player-name">Rajasekhar Chintha</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Venis V</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Jilani Pathan</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Bhaskar Boddireddy</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Ali Mohamed</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Sridhar K</span></li>
+                <li><span class="player-number">🎾</span><span class="player-name">Krishna Vennapusa</span></li>
+            </ul>
+        </div>
+
+    </section>
+</main>
+
+<script>
+    const menuBtn = document.getElementById('menuBtn');
+    const siteNav = document.getElementById('siteNav');
+    menuBtn.addEventListener('click', () => {
+      const open = siteNav.classList.toggle('open');
+      menuBtn.setAttribute('aria-expanded', String(open));
+    });
+</script>
+</body>
+</html>
