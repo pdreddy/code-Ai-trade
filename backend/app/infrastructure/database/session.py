@@ -8,12 +8,15 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app.core.config import Settings
+from backend.app.core.database_url import normalize_sqlalchemy_database_url
 
 
 def create_database_engine(settings: Settings) -> Engine:
     """Create a SQLAlchemy engine from application settings."""
 
-    return create_engine(str(settings.database_url), pool_pre_ping=True)
+    return create_engine(
+        normalize_sqlalchemy_database_url(str(settings.database_url)), pool_pre_ping=True
+    )
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

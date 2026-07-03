@@ -6,6 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from backend.app.core.config import get_settings
+from backend.app.core.database_url import normalize_sqlalchemy_database_url
 from backend.app.infrastructure.database.models import Base
 
 config = context.config
@@ -19,7 +20,7 @@ target_metadata = Base.metadata
 def get_url() -> str:
     """Return the configured database URL for migrations."""
 
-    return str(get_settings().database_url)
+    return normalize_sqlalchemy_database_url(str(get_settings().database_url))
 
 
 def run_migrations_offline() -> None:
