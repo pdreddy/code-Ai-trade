@@ -140,7 +140,7 @@ Files:
 - `backend/app/infrastructure/database/models.py` for SQLAlchemy instrument, bar, corporate-action, ingestion-batch, and quality-check tables.
 - `backend/app/infrastructure/database/session.py` for engine, session factory, and transactional session scope construction.
 - `backend/app/infrastructure/repositories/market_data.py` for SQLAlchemy market-data persistence and retrieval mappings.
-- `backend/alembic/` migrations.
+- `alembic.ini`, `backend/alembic/env.py`, and `backend/alembic/versions/0001_market_data_storage.py` for migration execution and initial market-data schema creation.
 - `tests/storage/` and `tests/integration/database/` for schema and repository coverage.
 
 Architecture:
@@ -162,7 +162,7 @@ Acceptance criteria:
 Testing:
 
 - Schema tests for idempotency constraints.
-- Migration tests.
+- Migration file tests for required tables and idempotency constraints.
 - Repository integration tests against PostgreSQL.
 - Data-quality regression tests for split and dividend scenarios.
 
