@@ -32,9 +32,9 @@ class Settings(BaseSettings):
     demo_mode: bool = False
     market_data_provider: MarketDataProvider = "yahoo"
     database_url: PostgresDsn = Field(
-        default="postgresql+psycopg://quant:quant@localhost:5432/quant"
+        default=PostgresDsn("postgresql+psycopg://quant:quant@localhost:5432/quant")
     )
-    redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
+    redis_url: RedisDsn = Field(default=RedisDsn("redis://localhost:6379/0"))
 
 
 @lru_cache

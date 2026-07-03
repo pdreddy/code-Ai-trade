@@ -6,9 +6,9 @@ import pytest
 
 pytest.importorskip("fastapi", reason="FastAPI dependency is required for API tests")
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
-from backend.app.main import create_app
+from backend.app.main import create_app  # noqa: E402
 
 TRADE_COUNT = 2
 

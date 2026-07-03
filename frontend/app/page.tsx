@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { EmptyState, PagePanel } from "@/components/page-panel";
 import { StatusGrid } from "@/components/status-grid";
 import { TerminalShell } from "@/components/terminal-shell";
@@ -7,26 +8,30 @@ export default function HomePage() {
   return (
     <TerminalShell>
       <PagePanel
-        description="A production-oriented foundation is in place across market data, agents, decisions, backtesting, paper trading, and risk. UI workspaces intentionally show empty states until API endpoints and persistence adapters are added."
+        description="A production-oriented foundation is in place across market data, agents, decisions, backtesting, paper trading, and risk. Market-data and signal APIs are live; the remaining workspaces show honest empty states until persistence adapters are added."
         eyebrow="Dashboard"
         title="Research Platform Status"
       >
         <StatusGrid capabilities={backendCapabilities} />
       </PagePanel>
       <PagePanel
-        description="The platform is designed for broad equity and ETF coverage without hard-coding provider behavior into the UI."
+        description="Select a symbol to open its live research workspace. Bars and signals are fetched from the configured provider — no synthetic prices are rendered."
         eyebrow="Universe"
         title="Supported Research Universe"
       >
         <div className="flex flex-wrap gap-3">
           {supportedUniverse.map((symbol) => (
-            <span className="rounded-lg border border-terminal-border bg-black/20 px-4 py-2 text-sm" key={symbol}>
+            <Link
+              className="rounded-lg border border-terminal-border bg-black/20 px-4 py-2 font-mono text-sm transition hover:border-terminal-accent hover:text-terminal-accent"
+              href={`/stocks?symbol=${symbol}`}
+              key={symbol}
+            >
               {symbol}
-            </span>
+            </Link>
           ))}
         </div>
       </PagePanel>
-      <EmptyState message="Next implementation step: API endpoints and persistence adapters for backtests, paper trading, risk decisions, and analytics." />
+      <EmptyState message="Next implementation step: persistence adapters for backtests, paper trading, risk decisions, and analytics history." />
     </TerminalShell>
   );
 }

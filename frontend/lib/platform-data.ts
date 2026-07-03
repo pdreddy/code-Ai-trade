@@ -21,7 +21,7 @@ export const terminalPages: TerminalPage[] = [
   { href: "/analytics", label: "Analytics", description: "Performance attribution" }
 ];
 
-export const supportedUniverse = ["SPY", "QQQ", "IWM", "DIA", "S&P 500", "Nasdaq"];
+export const supportedUniverse = ["SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA", "AMZN"];
 
 export const backendCapabilities: Capability[] = [
   {
@@ -55,8 +55,13 @@ export const backendCapabilities: Capability[] = [
     detail: "Kill switch, exposure, risk-per-trade, drawdown, liquidity, and correlation checks are implemented."
   },
   {
-    label: "Live APIs and persistence",
+    label: "Market data & signals API",
+    status: "ready",
+    detail: "Live endpoints serve real provider bars and run the agents plus master decision on demand; the Stock Details and Signals workspaces render them."
+  },
+  {
+    label: "Backtest, paper-trade & portfolio persistence",
     status: "planned",
-    detail: "Frontend pages are wired as honest empty-state workspaces until API endpoints and persistence adapters are added."
+    detail: "Those workspaces stay honest empty states until result persistence adapters are added; no fabricated data is shown."
   }
 ];

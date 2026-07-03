@@ -1,6 +1,10 @@
+from typing import cast
+
 import pytest
 
 pytest.importorskip("sqlalchemy", reason="SQLAlchemy is required for storage model tests")
+
+from sqlalchemy import Table  # noqa: E402
 
 from backend.app.infrastructure.database.models import (  # noqa: E402
     BarModel,
@@ -9,9 +13,12 @@ from backend.app.infrastructure.database.models import (  # noqa: E402
 
 
 def test_market_data_models_define_idempotency_constraints() -> None:
-    bar_constraints = {constraint.name for constraint in BarModel.__table__.constraints}
+    bar_constraints = {
+        constraint.name for constraint in cast(Table, BarModel.__table__).constraints
+    }
     action_constraints = {
-        constraint.name for constraint in CorporateActionModel.__table__.constraints
+        constraint.name
+        for constraint in cast(Table, CorporateActionModel.__table__).constraints
     }
 
     assert "uq_bars_instrument_timestamp_provider_policy" in bar_constraints

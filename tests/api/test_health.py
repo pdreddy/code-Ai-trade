@@ -4,9 +4,9 @@ import pytest
 
 pytest.importorskip("fastapi", reason="FastAPI dependency is required for API tests")
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
-from backend.app.main import create_app
+from backend.app.main import create_app  # noqa: E402
 
 
 def test_health_endpoint_returns_runtime_metadata() -> None:
