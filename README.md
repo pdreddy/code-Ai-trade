@@ -18,6 +18,15 @@ config/    Environment configuration examples
 tests/     Backend automated tests
 ```
 
+## Docker Compose
+
+The Compose project is explicitly named `ai-quant-platform` so local containers and volumes do not reuse old project-specific database volumes from this repository path. If you previously started the old stack, stop it before starting the renamed stack:
+
+```bash
+docker compose -p code-ai-trade down
+docker compose up --build
+```
+
 ## Local Backend
 
 ```bash
