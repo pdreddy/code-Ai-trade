@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/page-panel";
 import {
   ActionBadge,
   ErrorNote,
+  LoadingBlock,
   SymbolBar,
   formatCurrency,
   formatPercent
@@ -55,6 +56,8 @@ export function SignalsWorkspace() {
       </section>
 
       {error ? <ErrorNote message={error} /> : null}
+
+      {loading ? <LoadingBlock label={`Evaluating ${symbol} across ten agents…`} /> : null}
 
       {signals ? (
         <>

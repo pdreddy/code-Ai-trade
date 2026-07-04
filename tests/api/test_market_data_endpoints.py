@@ -117,3 +117,13 @@ def test_history_endpoint_rejects_non_alphanumeric_symbol() -> None:
     response = client.get("/api/v1/market-data/BRK.B/history")
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_history_endpoint_supports_ten_year_range() -> None:
+    client = _client(bar_count=HISTORY_BAR_COUNT)
+
+    within_range = client.get("/api/v1/market-data/SPY/history", params={"days": 3660})
+    beyond_range = client.get("/api/v1/market-data/SPY/history", params={"days": 3661})
+
+    assert within_range.status_code == HTTPStatus.OK
+    assert beyond_range.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

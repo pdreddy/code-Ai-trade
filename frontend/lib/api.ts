@@ -57,14 +57,31 @@ export type Signals = {
 
 export class ApiError extends Error {}
 
+// The backend proxies to a live market-data provider, so a request can legitimately
+// take several seconds; cap it so a stalled upstream surfaces as an error instead of
+// an indefinitely blank screen.
+const REQUEST_TIMEOUT_MS = 45_000;
+
 async function getJson<T>(path: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, { cache: "no-store" });
-  } catch {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      cache: "no-store",
+      signal: controller.signal
+    });
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === "AbortError") {
+      throw new ApiError(
+        `Request to ${apiBaseUrl} timed out after ${REQUEST_TIMEOUT_MS / 1000}s. The market-data provider may be slow or unreachable.`
+      );
+    }
     throw new ApiError(
       `Unable to reach the backend at ${apiBaseUrl}. Confirm the API is running and NEXT_PUBLIC_API_BASE_URL is set.`
     );
+  } finally {
+    clearTimeout(timeout);
   }
   if (!response.ok) {
     let detail = response.statusText;

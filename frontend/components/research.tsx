@@ -138,3 +138,59 @@ export function ErrorNote({ message }: Readonly<{ message: string }>) {
     </div>
   );
 }
+
+export type RangeOption = { label: string; days: number };
+
+export const rangeOptions: RangeOption[] = [
+  { label: "6M", days: 180 },
+  { label: "1Y", days: 365 },
+  { label: "2Y", days: 730 },
+  { label: "5Y", days: 1825 },
+  { label: "10Y", days: 3650 }
+];
+
+export function RangeSelector({
+  value,
+  onChange,
+  disabled
+}: Readonly<{ value: number; onChange: (days: number) => void; disabled: boolean }>) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs uppercase tracking-wide text-terminal-muted">Range</span>
+      {rangeOptions.map((option) => (
+        <button
+          className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
+            option.days === value
+              ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
+              : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+          }`}
+          disabled={disabled}
+          key={option.label}
+          onClick={() => onChange(option.days)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function LoadingBlock({ label }: Readonly<{ label: string }>) {
+  return (
+    <div className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
+      <div className="flex items-center gap-3 text-sm text-terminal-muted">
+        <span className="h-3 w-3 animate-pulse rounded-full bg-terminal-accent" />
+        {label}
+      </div>
+      <div className="mt-4 space-y-3">
+        <div className="h-24 w-full animate-pulse rounded-lg bg-black/30" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((key) => (
+            <div className="h-16 animate-pulse rounded-lg bg-black/30" key={key} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -101,9 +101,11 @@ class SignalsResponse(BaseModel):
     master_decision: MasterDecisionResponse
 
 
+# Upper bound covers ~10 years of calendar days so multi-year research ranges work.
+MAX_RANGE_DAYS = 3660
 SymbolPath = Annotated[str, Path(min_length=1, max_length=12)]
-HistoryDays = Annotated[int, Query(ge=30, le=1500)]
-SignalDays = Annotated[int, Query(ge=210, le=1500)]
+HistoryDays = Annotated[int, Query(ge=30, le=MAX_RANGE_DAYS)]
+SignalDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
 
 
 def _instrument_id(symbol: str) -> UUID:

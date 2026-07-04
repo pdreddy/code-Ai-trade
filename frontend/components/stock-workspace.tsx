@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/page-panel";
 import {
   ActionBadge,
   ErrorNote,
+  LoadingBlock,
+  RangeSelector,
   Sparkline,
   SymbolBar,
   formatCurrency,
@@ -22,39 +24,53 @@ import {
 } from "@/lib/api";
 
 const DEFAULT_SYMBOL = "SPY";
+const DEFAULT_RANGE_DAYS = 730; // 2 years
+const RECENT_BAR_LIMIT = 30;
 
 export function StockWorkspace() {
   const searchParams = useSearchParams();
   const initialSymbol = (searchParams.get("symbol") ?? DEFAULT_SYMBOL).toUpperCase();
 
   const [symbol, setSymbol] = useState(initialSymbol);
+  const [rangeDays, setRangeDays] = useState(DEFAULT_RANGE_DAYS);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [signals, setSignals] = useState<Signals | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (target: string) => {
+  const load = useCallback(async (target: string, days: number) => {
     setLoading(true);
     setError(null);
-    try {
-      const [data, signalData] = await Promise.all([
-        fetchMarketData(target),
-        fetchSignals(target)
-      ]);
-      setMarketData(data);
-      setSignals(signalData);
-    } catch (caught) {
+    // History follows the selected range; signals only need a recent window to
+    // evaluate the latest bar, so they use their own sufficient default. Load them
+    // independently so a failure in one does not blank out the other.
+    const [dataResult, signalResult] = await Promise.allSettled([
+      fetchMarketData(target, days),
+      fetchSignals(target)
+    ]);
+
+    if (dataResult.status === "fulfilled") {
+      setMarketData(dataResult.value);
+    } else {
       setMarketData(null);
-      setSignals(null);
-      setError(caught instanceof ApiError ? caught.message : "Unexpected error loading data.");
-    } finally {
-      setLoading(false);
+      setError(describeError(dataResult.reason));
     }
+
+    if (signalResult.status === "fulfilled") {
+      setSignals(signalResult.value);
+    } else {
+      setSignals(null);
+      if (dataResult.status === "fulfilled") {
+        setError(`Signals unavailable: ${describeError(signalResult.reason)}`);
+      }
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    void load(symbol);
-  }, [symbol, load]);
+    void load(symbol, rangeDays);
+  }, [symbol, rangeDays, load]);
 
   const bars = marketData?.bars ?? [];
   const latest = bars.at(-1);
@@ -74,12 +90,15 @@ export function StockWorkspace() {
             {symbol} <span className="text-terminal-muted">· Instrument Research Workspace</span>
           </h2>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-col gap-4">
           <SymbolBar loading={loading} onSubmit={setSymbol} symbol={symbol} />
+          <RangeSelector disabled={loading} onChange={setRangeDays} value={rangeDays} />
         </div>
       </section>
 
       {error ? <ErrorNote message={error} /> : null}
+
+      {loading ? <LoadingBlock label={`Loading ${symbol} market data and signals…`} /> : null}
 
       {latest ? (
         <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
@@ -173,10 +192,16 @@ export function StockWorkspace() {
 
       {bars.length ? (
         <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
-          <h3 className="text-lg font-semibold">Recent bars</h3>
-          <div className="mt-4 overflow-x-auto">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-lg font-semibold">Recent bars</h3>
+            <p className="text-xs text-terminal-muted">
+              Latest {Math.min(RECENT_BAR_LIMIT, bars.length)} of {formatNumber(bars.length)} bars ·
+              chart above spans the full range
+            </p>
+          </div>
+          <div className="mt-4 max-h-96 overflow-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-terminal-muted">
+              <thead className="sticky top-0 bg-terminal-panel text-xs uppercase tracking-wide text-terminal-muted">
                 <tr>
                   <th className="py-2 pr-4">Date</th>
                   <th className="py-2 pr-4 text-right">Open</th>
@@ -188,7 +213,7 @@ export function StockWorkspace() {
               </thead>
               <tbody className="font-mono">
                 {[...bars]
-                  .slice(-12)
+                  .slice(-RECENT_BAR_LIMIT)
                   .reverse()
                   .map((bar) => (
                     <tr className="border-t border-terminal-border/60" key={bar.timestamp}>
@@ -211,6 +236,13 @@ export function StockWorkspace() {
       ) : null}
     </div>
   );
+}
+
+function describeError(reason: unknown): string {
+  if (reason instanceof ApiError) {
+    return reason.message;
+  }
+  return "Unexpected error loading data.";
 }
 
 function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
