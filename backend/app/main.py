@@ -11,6 +11,7 @@ from backend.app.api.v1.capabilities import router as capabilities_router
 from backend.app.api.v1.health import router as health_router
 from backend.app.api.v1.market_data import router as market_data_router
 from backend.app.api.v1.options import router as options_router
+from backend.app.api.v1.options_portfolio import router as options_portfolio_router
 from backend.app.api.v1.portfolio import router as portfolio_router
 from backend.app.core.config import Settings, get_settings
 
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(market_data_router, prefix=resolved_settings.api_v1_prefix)
     app.include_router(portfolio_router, prefix=resolved_settings.api_v1_prefix)
     app.include_router(options_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(options_portfolio_router, prefix=resolved_settings.api_v1_prefix)
     return app
 
 

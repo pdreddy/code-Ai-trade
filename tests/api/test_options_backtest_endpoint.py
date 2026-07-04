@@ -23,7 +23,7 @@ from backend.app.main import create_app  # noqa: E402
 
 BAR_COUNT = 400
 TWO_SYMBOLS = 2
-MAG7_SYMBOL_COUNT = 7
+DEFAULT_OPTIONS_UNIVERSE_COUNT = 7
 
 
 def _oscillating(index: int) -> Decimal:
@@ -36,12 +36,12 @@ class _StubProvider:
     def fetch_daily_history(
         self, request: HistoricalMarketDataRequest
     ) -> HistoricalMarketData:
-        start = datetime(2016, 1, 1, tzinfo=UTC)
+        start = datetime(2024, 1, 1, tzinfo=UTC)
         bars = tuple(
             Bar(
                 instrument_id=request.instrument_id,
                 timestamp=start + timedelta(days=index),
-                open=Price(_oscillating(index)),
+                open=Price(_oscillating(index) - Decimal("0.3")),
                 high=Price(_oscillating(index) + Decimal("2")),
                 low=Price(_oscillating(index) - Decimal("2")),
                 close=Price(_oscillating(index)),
@@ -59,7 +59,7 @@ class _StubProvider:
                 dataset="test",
                 symbol=request.symbol,
                 adjustment_policy="none",
-                retrieved_at_utc_iso="2016-01-01T00:00:00+00:00",
+                retrieved_at_utc_iso="2024-01-01T00:00:00+00:00",
             ),
         )
 
@@ -72,40 +72,63 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-def test_execute_portfolio_allocates_capital_and_aggregates_trades() -> None:
+def test_options_backtest_endpoint_is_labeled_modeled() -> None:
     client = _client()
 
     response = client.get(
-        "/api/v1/portfolio/execute",
-        params={"symbols": ["SPY", "QQQ"], "capital": "10000", "days": 1200},
+        "/api/v1/options/SPY/backtest",
+        params={"style": "zero_dte", "days": 1200, "capital": "10000"},
     )
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["initial_capital"] == "10000"
+    assert payload["symbol"] == "SPY"
+    assert payload["style"] == "zero_dte"
+    assert payload["modeled"] is True
+    assert "Black-Scholes" in payload["pricing_note"]
+    assert payload["metrics"]["trade_count"] > 0
+    assert len(payload["trades"]) == payload["metrics"]["trade_count"]
+    for trade in payload["trades"]:
+        assert trade["option_side"] in {"call", "put"}
+        assert trade["entry_at"] == trade["exit_at"]  # 0DTE same-day round trip
+
+
+def test_options_backtest_endpoint_supports_weekly_style() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/options/SPY/backtest", params={"style": "weekly", "days": 1200}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["style"] == "weekly"
+    assert payload["metrics"]["trade_count"] > 0
+
+
+def test_options_portfolio_execute_allocates_capital_across_universe() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/options-portfolio/execute",
+        params={"symbols": ["SPY", "QQQ"], "capital": "10000", "days": 1200, "style": "weekly"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["modeled"] is True
     assert payload["symbol_count"] == TWO_SYMBOLS
-    assert len(payload["sleeves"]) == TWO_SYMBOLS
-    # Each sleeve receives an equal slice of the shared capital base.
     assert {sleeve["allocated"] for sleeve in payload["sleeves"]} == {"5000.00"}
     assert payload["trade_count"] > 0
     assert len(payload["trades"]) > 0
-    assert payload["winning_trades"] + payload["losing_trades"] <= payload["trade_count"]
-    assert Decimal(payload["success_rate"]) >= Decimal("0")
-    assert len(payload["equity_curve"]) == BAR_COUNT
-    # Cash + invested reconciles to total equity.
-    assert Decimal(payload["cash"]) + Decimal(payload["invested"]) == Decimal(
-        payload["total_equity"]
-    )
-    for sleeve in payload["sleeves"]:
-        assert sleeve["next_signal"]["action"] in {"buy", "sell", "hold"}
+    assert payload["errors"] == []
 
 
-def test_execute_portfolio_defaults_to_full_universe() -> None:
+def test_options_portfolio_execute_defaults_to_curated_universe() -> None:
     client = _client()
 
-    response = client.get("/api/v1/portfolio/execute", params={"days": 600})
+    response = client.get("/api/v1/options-portfolio/execute", params={"days": 600})
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["symbol_count"] == MAG7_SYMBOL_COUNT
-    assert payload["errors"] == []
+    assert payload["symbol_count"] == DEFAULT_OPTIONS_UNIVERSE_COUNT

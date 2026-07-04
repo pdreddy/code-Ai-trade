@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from http import HTTPStatus
@@ -24,6 +23,8 @@ from backend.app.api.v1.options import get_options_provider  # noqa: E402
 from backend.app.main import create_app  # noqa: E402
 
 HISTORY_BAR_COUNT = 300
+NEAR_TERM_MAX_DTE = 8
+EXPECTED_NEAR_TERM_COUNT = 3
 
 
 def _upward(index: int) -> Decimal:
@@ -149,14 +150,14 @@ def _client() -> TestClient:
 def test_options_endpoint_returns_near_term_unusual_and_planned() -> None:
     client = _client()
 
-    response = client.get("/api/v1/options/SPY", params={"max_dte": 8})
+    response = client.get("/api/v1/options/SPY", params={"max_dte": NEAR_TERM_MAX_DTE})
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["symbol"] == "SPY"
     assert payload["underlying_price"] == "130"
     # The 30-day contract is excluded; three near-term contracts remain.
-    assert payload["near_term_count"] == 3
+    assert payload["near_term_count"] == EXPECTED_NEAR_TERM_COUNT
     assert payload["zero_dte_count"] == 1
     assert payload["signal"]["action"] in {"buy", "sell", "hold"}
 
@@ -167,7 +168,7 @@ def test_options_endpoint_returns_near_term_unusual_and_planned() -> None:
 
     # Only near-term contracts appear in unusual activity (the far one is filtered).
     for item in payload["unusual_activity"]:
-        assert item["contract"]["days_to_expiry"] <= 8
+        assert item["contract"]["days_to_expiry"] <= NEAR_TERM_MAX_DTE
 
 
 def test_options_endpoint_rejects_bad_symbol_length() -> None:
