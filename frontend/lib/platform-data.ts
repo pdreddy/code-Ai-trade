@@ -22,7 +22,8 @@ export const terminalPages: TerminalPage[] = [
   { href: "/analytics", label: "Analytics", description: "Performance attribution" }
 ];
 
-export const supportedUniverse = ["SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA", "AMZN"];
+// The "Magnificent Seven" mega-cap tech names.
+export const supportedUniverse = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
 
 export const backendCapabilities: Capability[] = [
   {

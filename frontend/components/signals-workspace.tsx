@@ -13,7 +13,7 @@ import {
 } from "@/components/research";
 import { ApiError, fetchSignals, type Signals } from "@/lib/api";
 
-const DEFAULT_SYMBOL = "SPY";
+const DEFAULT_SYMBOL = "AAPL";
 
 export function SignalsWorkspace() {
   const searchParams = useSearchParams();

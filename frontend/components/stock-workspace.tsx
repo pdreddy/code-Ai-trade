@@ -23,7 +23,7 @@ import {
   type Signals
 } from "@/lib/api";
 
-const DEFAULT_SYMBOL = "SPY";
+const DEFAULT_SYMBOL = "AAPL";
 const DEFAULT_RANGE_DAYS = 730; // 2 years
 const RECENT_BAR_LIMIT = 30;
 

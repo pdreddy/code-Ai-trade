@@ -106,5 +106,5 @@ def test_execute_portfolio_defaults_to_full_universe() -> None:
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["symbol_count"] == 8
+    assert payload["symbol_count"] == 7
     assert payload["errors"] == []

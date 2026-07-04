@@ -77,7 +77,7 @@ export function Sparkline({
   );
 }
 
-export const symbolSuggestions = ["SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA", "AMZN"];
+export const symbolSuggestions = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
 
 export function SymbolBar({
   symbol,

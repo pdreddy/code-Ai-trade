@@ -14,7 +14,7 @@ import {
 } from "@/components/research";
 import { ApiError, fetchOptionsResearch, type OptionContract, type OptionsResearch } from "@/lib/api";
 
-const DEFAULT_SYMBOL = "SPY";
+const DEFAULT_SYMBOL = "AAPL";
 
 // 0DTE isolates same-day expiries; the weekly horizon (8 calendar days) captures the
 // front weekly expiry as well.

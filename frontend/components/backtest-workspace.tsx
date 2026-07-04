@@ -17,7 +17,7 @@ import {
 } from "@/components/research";
 import { ApiError, fetchBacktest, type Backtest } from "@/lib/api";
 
-const DEFAULT_SYMBOL = "SPY";
+const DEFAULT_SYMBOL = "AAPL";
 const DEFAULT_RANGE_DAYS = 1825; // 5 years
 const TRADE_LIMIT = 100;
 
