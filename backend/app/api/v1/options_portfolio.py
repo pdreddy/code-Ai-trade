@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict
 
 from backend.app.api.v1.market_data import (
@@ -20,13 +20,18 @@ from backend.app.api.v1.market_data import (
     _decision_response,
     get_market_data_service,
 )
-from backend.app.api.v1.options import PRICING_NOTE
+from backend.app.api.v1.options import PRICING_NOTE, get_options_provider
 from backend.app.application.market_data import MarketDataService
 from backend.app.application.options_backtesting import OptionsStyle
+from backend.app.application.options_forward_ledger import (
+    LedgerSnapshot,
+    OptionsForwardLedgerService,
+)
 from backend.app.application.options_portfolio_execution import (
     OptionsPortfolioExecution,
     OptionsPortfolioExecutionService,
 )
+from backend.app.domain.options import OptionsProvider
 
 router = APIRouter(prefix="/options-portfolio", tags=["options-portfolio"])
 
@@ -36,9 +41,39 @@ router = APIRouter(prefix="/options-portfolio", tags=["options-portfolio"])
 # weekly style still covers the platform's Magnificent 7 names.
 DEFAULT_UNIVERSE = ("SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "TSLA")
 MAX_RANGE_DAYS = 3660
+LEDGER_CAPITAL = Decimal("10000")
 
 ExecuteDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
 Capital = Annotated[Decimal, Query(gt=0)]
+
+LEDGER_NOTE = (
+    "Live paper ledger: positions are opened and marked at real quoted prices "
+    "from the live options chain (no Black-Scholes modeling). The track record "
+    "only grows forward from whenever this was first run and resets if the "
+    "backend process restarts — it is not yet backed by durable storage."
+)
+
+
+def get_options_ledger(
+    request: Request,
+    market_data: Annotated[MarketDataService, Depends(get_market_data_service)],
+    options: Annotated[OptionsProvider, Depends(get_options_provider)],
+) -> OptionsForwardLedgerService:
+    """Provide the process-lifetime options paper ledger (in-memory singleton).
+
+    Mirrors how the existing stock PaperBroker holds state in memory rather
+    than a database; see the module docstring on OptionsForwardLedgerService.
+    """
+
+    state = request.app.state
+    ledger = getattr(state, "options_ledger", None)
+    if ledger is None:
+        ledger = OptionsForwardLedgerService(options=options, market_data=market_data)
+        per_symbol = (LEDGER_CAPITAL / Decimal(len(DEFAULT_UNIVERSE))).quantize(Decimal("0.01"))
+        for symbol in DEFAULT_UNIVERSE:
+            ledger.ensure_symbol(symbol, per_symbol)
+        state.options_ledger = ledger
+    return ledger
 
 
 class OptionsSleeveResponse(BaseModel):
@@ -198,3 +233,137 @@ def _execution_response(
             for error in execution.errors
         ),
     )
+
+
+class LedgerOpenPositionResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    style: str
+    option_side: str
+    contract_symbol: str
+    strike: Decimal
+    expiration: str
+    opened_at: str
+    entry_underlying: Decimal
+    entry_premium: Decimal
+    contracts: int
+    entry_reason: str
+    mark_premium: Decimal | None
+    unrealized_pnl: Decimal | None
+
+
+class LedgerClosedPositionResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    style: str
+    option_side: str
+    contract_symbol: str
+    strike: Decimal
+    expiration: str
+    opened_at: str
+    entry_underlying: Decimal
+    entry_premium: Decimal
+    contracts: int
+    entry_reason: str
+    closed_at: str
+    exit_underlying: Decimal
+    exit_premium: Decimal
+    realized_pnl: Decimal
+    settlement: str
+
+
+class LedgerSnapshotResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    generated_at: str
+    real_quotes: bool
+    note: str
+    cash_by_symbol: dict[str, Decimal]
+    realized_pnl_total: Decimal
+    open_positions: tuple[LedgerOpenPositionResponse, ...]
+    closed_positions: tuple[LedgerClosedPositionResponse, ...]
+
+
+def _snapshot_response(snapshot: LedgerSnapshot) -> LedgerSnapshotResponse:
+    realized_total = sum(
+        (position.realized_pnl for position in snapshot.closed_positions), Decimal("0")
+    )
+    return LedgerSnapshotResponse(
+        generated_at=datetime.now().astimezone().isoformat(),
+        real_quotes=True,
+        note=LEDGER_NOTE,
+        cash_by_symbol=snapshot.cash_by_symbol,
+        realized_pnl_total=realized_total,
+        open_positions=tuple(
+            LedgerOpenPositionResponse(
+                symbol=marked.position.symbol,
+                style=marked.position.style.value,
+                option_side=marked.position.option_side.value,
+                contract_symbol=marked.position.contract_symbol,
+                strike=marked.position.strike,
+                expiration=marked.position.expiration.isoformat(),
+                opened_at=marked.position.opened_at.isoformat(),
+                entry_underlying=marked.position.entry_underlying,
+                entry_premium=marked.position.entry_premium,
+                contracts=marked.position.contracts,
+                entry_reason=marked.position.entry_reason,
+                mark_premium=marked.mark_premium,
+                unrealized_pnl=marked.unrealized_pnl,
+            )
+            for marked in snapshot.open_positions
+        ),
+        closed_positions=tuple(
+            LedgerClosedPositionResponse(
+                symbol=position.symbol,
+                style=position.style.value,
+                option_side=position.option_side.value,
+                contract_symbol=position.contract_symbol,
+                strike=position.strike,
+                expiration=position.expiration.isoformat(),
+                opened_at=position.opened_at.isoformat(),
+                entry_underlying=position.entry_underlying,
+                entry_premium=position.entry_premium,
+                contracts=position.contracts,
+                entry_reason=position.entry_reason,
+                closed_at=position.closed_at.isoformat(),
+                exit_underlying=position.exit_underlying,
+                exit_premium=position.exit_premium,
+                realized_pnl=position.realized_pnl,
+                settlement=position.settlement,
+            )
+            for position in snapshot.closed_positions
+        ),
+    )
+
+
+@router.get("/paper-ledger", response_model=LedgerSnapshotResponse)
+def get_paper_ledger(
+    ledger: Annotated[OptionsForwardLedgerService, Depends(get_options_ledger)],
+) -> LedgerSnapshotResponse:
+    """Read-only snapshot of the live paper ledger — no side effects."""
+
+    return _snapshot_response(ledger.snapshot())
+
+
+@router.post("/paper-ledger/tick", response_model=LedgerSnapshotResponse)
+def tick_paper_ledger(
+    ledger: Annotated[OptionsForwardLedgerService, Depends(get_options_ledger)],
+    style: OptionsStyle = OptionsStyle.WEEKLY,
+    max_dte: int = 8,
+) -> LedgerSnapshotResponse:
+    """Settle matured/delisted positions, then open new ones from live signals.
+
+    Intended to be called periodically (e.g. once per trading day). Each
+    symbol in the ledger's universe opens at most one position per style at a
+    time — a symbol already holding a position is left alone until it closes.
+    """
+
+    ledger.tick()
+    for symbol in DEFAULT_UNIVERSE:
+        try:
+            ledger.open_if_signal(symbol, style, max_dte)
+        except Exception:  # noqa: BLE001 - one bad symbol must not sink the tick
+            continue
+    return _snapshot_response(ledger.snapshot())
