@@ -11,6 +11,8 @@ type Candidate = {
   last_close: string;
   stop_loss: string | null;
   take_profit: string | null;
+  suggested_quantity: string;
+  suggested_notional: string;
   reasons: string[];
 };
 
@@ -36,6 +38,8 @@ type Backtest = {
   max_drawdown: string;
   trade_count: number;
   open_position: boolean;
+  starting_capital: string;
+  ending_equity: string;
   trades: Trade[];
 };
 
@@ -52,14 +56,14 @@ type ReportState =
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
-export function DailyResearchReport({ view }: Readonly<{ view: "signals" | "backtests" | "paper-trades" | "analytics" }>) {
+export function DailyResearchReport({ view }: Readonly<{ view: "signals" | "backtests" | "paper-trades" | "analytics" | "portfolio" }>) {
   const [state, setState] = useState<ReportState>({ status: "loading", report: null, error: null });
 
   useEffect(() => {
     let cancelled = false;
     async function loadReport() {
       try {
-        const response = await fetch(`${apiBaseUrl}/research/daily-report`, {
+        const response = await fetch(`${apiBaseUrl}/research/daily-report?capital=5000`, {
           headers: { Accept: "application/json" }
         });
         if (!response.ok) {
@@ -102,6 +106,9 @@ export function DailyResearchReport({ view }: Readonly<{ view: "signals" | "back
   if (view === "analytics") {
     return <AnalyticsGrid backtests={state.report.backtests} generatedAt={state.report.generated_at} />;
   }
+  if (view === "portfolio") {
+    return <PortfolioGrid backtests={state.report.backtests} />;
+  }
   return <BacktestGrid backtests={state.report.backtests} />;
 }
 
@@ -124,6 +131,8 @@ function CandidateGrid({ candidates, generatedAt }: Readonly<{ candidates: Candi
               <div className="flex justify-between"><dt>Last close</dt><dd>${candidate.last_close}</dd></div>
               <div className="flex justify-between"><dt>Stop</dt><dd>{candidate.stop_loss ?? "n/a"}</dd></div>
               <div className="flex justify-between"><dt>Target</dt><dd>{candidate.take_profit ?? "n/a"}</dd></div>
+              <div className="flex justify-between"><dt>Suggested qty</dt><dd>{candidate.suggested_quantity}</dd></div>
+              <div className="flex justify-between"><dt>Suggested $</dt><dd>{candidate.suggested_notional}</dd></div>
             </dl>
             <ul className="mt-3 list-disc space-y-1 pl-4 text-[11px] text-terminal-muted">
               {candidate.reasons.map((reason) => <li key={reason}>{reason}</li>)}
@@ -144,6 +153,8 @@ function BacktestGrid({ backtests }: Readonly<{ backtests: Backtest[] }>) {
           <p className="font-medium">{backtest.symbol}</p>
           <p className="mt-2 text-xs text-terminal-muted">{backtest.start_date} → {backtest.end_date} · {backtest.bars} bars</p>
           <dl className="mt-3 grid gap-2 text-xs text-terminal-muted">
+            <div className="flex justify-between"><dt>Capital</dt><dd>${backtest.starting_capital}</dd></div>
+            <div className="flex justify-between"><dt>Ending equity</dt><dd>${backtest.ending_equity}</dd></div>
             <div className="flex justify-between"><dt>Total return</dt><dd>{backtest.total_return}</dd></div>
             <div className="flex justify-between"><dt>Win rate</dt><dd>{backtest.win_rate}</dd></div>
             <div className="flex justify-between"><dt>Max DD</dt><dd>{backtest.max_drawdown}</dd></div>
@@ -217,4 +228,23 @@ function average(values: number[]) {
     return 0;
   }
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function PortfolioGrid({ backtests }: Readonly<{ backtests: Backtest[] }>) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {backtests.map((backtest) => (
+        <div className="rounded-xl border border-terminal-border bg-black/20 p-4" key={backtest.symbol}>
+          <p className="font-medium">{backtest.symbol}</p>
+          <dl className="mt-3 grid gap-2 text-xs text-terminal-muted">
+            <div className="flex justify-between"><dt>Start cash</dt><dd>${backtest.starting_capital}</dd></div>
+            <div className="flex justify-between"><dt>Ending equity</dt><dd>${backtest.ending_equity}</dd></div>
+            <div className="flex justify-between"><dt>Return</dt><dd>{backtest.total_return}</dd></div>
+            <div className="flex justify-between"><dt>Open position</dt><dd>{String(backtest.open_position)}</dd></div>
+            <div className="flex justify-between"><dt>Trades</dt><dd>{backtest.trade_count}</dd></div>
+          </dl>
+        </div>
+      ))}
+    </div>
+  );
 }

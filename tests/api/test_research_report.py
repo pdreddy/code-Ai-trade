@@ -45,6 +45,8 @@ def test_daily_research_endpoint_returns_candidates_and_daywise_trades(
                     last_close=Decimal("744.78"),
                     stop_loss=Decimal("722.4366"),
                     take_profit=Decimal("789.4668"),
+                    suggested_quantity=Decimal("1.6783"),
+                    suggested_notional=Decimal("1249.9805"),
                     reasons=("signal_on_close_fill_next_open",),
                 ),
             ),
@@ -59,6 +61,8 @@ def test_daily_research_endpoint_returns_candidates_and_daywise_trades(
                     max_drawdown=Decimal("-0.10"),
                     trade_count=1,
                     open_position=False,
+                    starting_capital=Decimal("5000"),
+                    ending_equity=Decimal("5250"),
                     trades=(trade,),
                 ),
             ),
@@ -69,9 +73,14 @@ def test_daily_research_endpoint_returns_candidates_and_daywise_trades(
         fake_report,
     )
 
-    response = TestClient(create_app()).get("/api/v1/research/daily-report?symbols=SPY")
+    response = TestClient(create_app()).get(
+        "/api/v1/research/daily-report?symbols=SPY&capital=5000"
+    )
 
     assert response.status_code == HTTP_OK
     payload = response.json()
     assert payload["candidates"][0]["action"] == "BUY"
+    assert payload["candidates"][0]["suggested_quantity"] == "1.6783"
+    assert payload["backtests"][0]["starting_capital"] == "5000.0000"
+    assert payload["backtests"][0]["ending_equity"] == "5250.0000"
     assert payload["backtests"][0]["trades"][0]["pnl"] == "250.0000"

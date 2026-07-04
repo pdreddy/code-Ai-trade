@@ -1,25 +1,18 @@
+import { DailyResearchReport } from "@/components/daily-research-report";
 import { EmptyState, PagePanel } from "@/components/page-panel";
 import { TerminalShell } from "@/components/terminal-shell";
-
-const controls = ["Cash", "Positions", "Gross exposure", "Drawdown", "Liquidity", "Correlation", "Kill switch", "Sector exposure"];
 
 export default function PortfolioPage() {
   return (
     <TerminalShell>
       <PagePanel
-        description="Portfolio views will consume paper broker state and risk decisions while keeping accounting and risk logic in backend services."
+        description="Portfolio view for the current $5,000 paper-research simulation across the supported ETF universe. Values are calculated from real provider-backed strategy results."
         eyebrow="Portfolio"
-        title="Portfolio And Risk Monitor"
+        title="$5,000 Paper Portfolio Monitor"
       >
-        <div className="grid gap-3 md:grid-cols-4">
-          {controls.map((control) => (
-            <div className="rounded-xl border border-terminal-border bg-black/20 p-4 text-sm" key={control}>
-              {control}
-            </div>
-          ))}
-        </div>
+        <DailyResearchReport view="portfolio" />
       </PagePanel>
-      <EmptyState message="Portfolio values are intentionally empty until persisted paper broker state is exposed through APIs." />
+      <EmptyState message="Portfolio values are simulated paper/research results only; no live brokerage orders are sent." />
     </TerminalShell>
   );
 }

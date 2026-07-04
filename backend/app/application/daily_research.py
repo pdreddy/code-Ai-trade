@@ -11,7 +11,7 @@ from decimal import ROUND_DOWN, Decimal
 from statistics import mean
 
 DEFAULT_RESEARCH_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA")
-STARTING_CAPITAL = Decimal("100000")
+DEFAULT_STARTING_CAPITAL = Decimal("5000")
 SHORT_WINDOW = 20
 LONG_WINDOW = 50
 LOOKBACK_DAYS = 365 * 5 + 2
@@ -51,6 +51,8 @@ class BacktestSummary:
     max_drawdown: Decimal
     trade_count: int
     open_position: bool
+    starting_capital: Decimal
+    ending_equity: Decimal
     trades: tuple[DailyTrade, ...]
 
 
@@ -64,6 +66,8 @@ class NextDayCandidate:
     last_close: Decimal
     stop_loss: Decimal | None
     take_profit: Decimal | None
+    suggested_quantity: Decimal
+    suggested_notional: Decimal
     reasons: tuple[str, ...]
 
 
@@ -92,7 +96,11 @@ class DailyResearchService:
         symbols: tuple[str, ...] = DEFAULT_RESEARCH_SYMBOLS,
         *,
         end: date | None = None,
+        starting_capital: Decimal = DEFAULT_STARTING_CAPITAL,
     ) -> DailyResearchReport:
+        if starting_capital <= 0:
+            msg = "starting_capital must be positive"
+            raise ValueError(msg)
         resolved_end = end or datetime.now(UTC).date()
         start = resolved_end - timedelta(days=LOOKBACK_DAYS)
         backtests: list[BacktestSummary] = []
@@ -101,21 +109,25 @@ class DailyResearchService:
             bars = self._fetch_bars(symbol.upper(), start, resolved_end)
             if len(bars) <= LONG_WINDOW + 1:
                 continue
-            backtest = self._backtest(symbol.upper(), bars)
+            backtest = self._backtest(symbol.upper(), bars, starting_capital)
             backtests.append(backtest)
-            candidates.append(self._candidate(symbol.upper(), bars, backtest.open_position))
+            candidates.append(
+                self._candidate(symbol.upper(), bars, backtest.open_position, starting_capital)
+            )
         return DailyResearchReport(
             generated_at=datetime.now(UTC),
             candidates=tuple(candidates),
             backtests=tuple(backtests),
         )
 
-    def _backtest(self, symbol: str, bars: list[ResearchBar]) -> BacktestSummary:
-        cash = STARTING_CAPITAL
+    def _backtest(
+        self, symbol: str, bars: list[ResearchBar], starting_capital: Decimal
+    ) -> BacktestSummary:
+        cash = starting_capital
         quantity = Decimal("0")
         entry_price: Decimal | None = None
         entry_date: date | None = None
-        peak_equity = STARTING_CAPITAL
+        peak_equity = starting_capital
         max_drawdown = Decimal("0")
         trades: list[DailyTrade] = []
 
@@ -183,16 +195,18 @@ class DailyResearchService:
             start_date=bars[0].session,
             end_date=bars[-1].session,
             bars=len(bars),
-            total_return=last_equity / STARTING_CAPITAL - 1,
+            total_return=last_equity / starting_capital - 1,
             win_rate=win_rate,
             max_drawdown=max_drawdown,
             trade_count=len(trades),
             open_position=quantity > 0,
-            trades=tuple(trades[-8:]),
+            starting_capital=starting_capital,
+            ending_equity=last_equity,
+            trades=tuple(trades[-12:]),
         )
 
     def _candidate(
-        self, symbol: str, bars: list[ResearchBar], open_position: bool
+        self, symbol: str, bars: list[ResearchBar], open_position: bool, starting_capital: Decimal
     ) -> NextDayCandidate:
         index = len(bars) - 1
         signal = self._signal(bars, index, open_position)
@@ -201,6 +215,11 @@ class DailyResearchService:
         long = self._average_close(bars, index, LONG_WINDOW)
         momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
         confidence = min(Decimal("0.95"), max(Decimal("0.10"), abs(short / long - 1) * 10))
+        risk_notional = starting_capital * Decimal("0.25")
+        suggested_quantity = (risk_notional / latest.close).quantize(
+            Decimal("0.0001"), rounding=ROUND_DOWN
+        ) if signal == "BUY" else Decimal("0")
+        suggested_notional = suggested_quantity * latest.close
         reasons = (
             f"close={latest.close.quantize(Decimal('0.0001'))}",
             f"sma20={short.quantize(Decimal('0.0001'))}",
@@ -217,6 +236,8 @@ class DailyResearchService:
             last_close=latest.close,
             stop_loss=latest.close * Decimal("0.97") if signal == "BUY" else None,
             take_profit=latest.close * Decimal("1.06") if signal == "BUY" else None,
+            suggested_quantity=suggested_quantity,
+            suggested_notional=suggested_notional,
             reasons=reasons,
         )
 

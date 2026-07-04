@@ -15,6 +15,7 @@ from backend.app.application.daily_research import (
 )
 
 router = APIRouter(prefix="/research", tags=["research"])
+CAPITAL_QUERY = Query(default=Decimal("5000"), gt=0)
 
 
 class TradeResponse(BaseModel):
@@ -43,6 +44,8 @@ class BacktestResponse(BaseModel):
     max_drawdown: Decimal
     trade_count: int
     open_position: bool
+    starting_capital: Decimal
+    ending_equity: Decimal
     trades: tuple[TradeResponse, ...]
 
 
@@ -57,6 +60,8 @@ class CandidateResponse(BaseModel):
     last_close: Decimal
     stop_loss: Decimal | None
     take_profit: Decimal | None
+    suggested_quantity: Decimal
+    suggested_notional: Decimal
     reasons: tuple[str, ...]
 
 
@@ -71,11 +76,12 @@ class DailyResearchReportResponse(BaseModel):
 @router.get("/daily-report", response_model=DailyResearchReportResponse)
 def daily_report(
     symbols: tuple[str, ...] = Query(default=DEFAULT_RESEARCH_SYMBOLS, min_length=1, max_length=12),
+    capital: Decimal = CAPITAL_QUERY,
 ) -> DailyResearchReportResponse:
     """Return real historical strategy results and next-session paper candidates."""
 
     try:
-        report = DailyResearchService().build_report(symbols)
+        report = DailyResearchService().build_report(symbols, starting_capital=capital)
     except (OSError, RuntimeError, KeyError, ValueError) as exc:
         raise HTTPException(
             status_code=503,
@@ -98,6 +104,8 @@ def _candidate(candidate: NextDayCandidate) -> CandidateResponse:
         last_close=_round(candidate.last_close),
         stop_loss=_round(candidate.stop_loss) if candidate.stop_loss is not None else None,
         take_profit=_round(candidate.take_profit) if candidate.take_profit is not None else None,
+        suggested_quantity=_round(candidate.suggested_quantity),
+        suggested_notional=_round(candidate.suggested_notional),
         reasons=candidate.reasons,
     )
 
@@ -113,6 +121,8 @@ def _backtest(backtest: BacktestSummary) -> BacktestResponse:
         max_drawdown=_round(backtest.max_drawdown),
         trade_count=backtest.trade_count,
         open_position=backtest.open_position,
+        starting_capital=_round(backtest.starting_capital),
+        ending_equity=_round(backtest.ending_equity),
         trades=tuple(_trade(trade) for trade in backtest.trades),
     )
 
