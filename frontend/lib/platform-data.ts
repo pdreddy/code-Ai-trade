@@ -18,7 +18,8 @@ export const terminalPages: TerminalPage[] = [
   { href: "/backtests", label: "Backtests", description: "Event-driven simulations" },
   { href: "/paper-trades", label: "Paper Trades", description: "Paper broker activity" },
   { href: "/portfolio", label: "Portfolio", description: "Cash, exposure, risk" },
-  { href: "/analytics", label: "Analytics", description: "Performance attribution" }
+  { href: "/analytics", label: "Analytics", description: "Performance attribution" },
+  { href: "/strategies", label: "Strategies", description: "Strategy lab" }
 ];
 
 export const supportedUniverse = ["SPY", "QQQ", "IWM", "DIA", "S&P 500", "Nasdaq"];
@@ -55,8 +56,8 @@ export const backendCapabilities: Capability[] = [
     detail: "Kill switch, exposure, risk-per-trade, drawdown, liquidity, and correlation checks are implemented."
   },
   {
-    label: "Live APIs and persistence",
-    status: "planned",
-    detail: "Frontend pages are wired as honest empty-state workspaces until API endpoints and persistence adapters are added."
+    label: "Strategy lab",
+    status: "ready",
+    detail: "Multi-strategy comparison, walk-forward, Monte Carlo, parameter optimization, feature importance, correlations, regime analytics, and paper-export intents are available."
   }
 ];

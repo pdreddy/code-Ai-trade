@@ -131,3 +131,24 @@ The endpoint remains:
 ```bash
 curl "http://localhost:8000/api/v1/research/daily-report?capital=10000"
 ```
+
+## Strategy Lab
+
+The platform includes an additive Strategy Lab at `/strategies` and `GET /api/v1/strategies/lab`.
+It preserves existing research APIs while adding executable research workflows for:
+
+- one-click 1, 3, 5, and 10 year backtest horizons;
+- multi-strategy comparison and leaderboard ranking;
+- walk-forward validation;
+- deterministic Monte Carlo scenario analysis;
+- SMA parameter optimization;
+- feature-importance explanations;
+- symbol correlation heatmaps;
+- regime-based performance summaries;
+- export-ready paper-trading intents that require user confirmation and do not place live orders.
+
+Example:
+
+```bash
+curl "http://localhost:8000/api/v1/strategies/lab?horizon_years=5&capital=10000"
+```
