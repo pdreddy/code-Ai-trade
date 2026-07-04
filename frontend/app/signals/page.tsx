@@ -1,37 +1,18 @@
+import { DailyResearchReport } from "@/components/daily-research-report";
 import { EmptyState, PagePanel } from "@/components/page-panel";
 import { TerminalShell } from "@/components/terminal-shell";
-
-const agents = [
-  "Trend",
-  "Momentum",
-  "Volatility",
-  "Risk",
-  "Portfolio",
-  "Mean Reversion",
-  "Breakout",
-  "Support / Resistance",
-  "Volume",
-  "Market Regime"
-];
 
 export default function SignalsPage() {
   return (
     <TerminalShell>
       <PagePanel
-        description="The backend agent framework and master decision engine are implemented. This page avoids fake signals until decision APIs and persistence are exposed."
+        description="Latest close-based research signals from real five-year OHLCV data. Any BUY/SELL candidate is planned for paper execution at the next session open, not the same bar."
         eyebrow="Signals"
-        title="AI Signal Workbench"
+        title="Next-Day Paper Trade Candidates"
       >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {agents.map((agent) => (
-            <div className="rounded-xl border border-terminal-border bg-black/20 p-4" key={agent}>
-              <p className="font-medium">{agent}</p>
-              <p className="mt-2 text-xs text-emerald-300">Backend agent ready</p>
-            </div>
-          ))}
-        </div>
+        <DailyResearchReport view="signals" />
       </PagePanel>
-      <EmptyState message="Persisted agent votes and master decisions will appear here once API endpoints are added." />
+      <EmptyState message="Signals are generated from real provider bars. If the provider is unavailable, this page will not fabricate trades." />
     </TerminalShell>
   );
 }

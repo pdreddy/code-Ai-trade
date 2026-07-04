@@ -1,0 +1,274 @@
+"""Daily research report service backed by real OHLCV provider data."""
+
+from __future__ import annotations
+
+import json
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta
+from decimal import ROUND_DOWN, Decimal
+from statistics import mean
+
+DEFAULT_RESEARCH_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA")
+STARTING_CAPITAL = Decimal("100000")
+SHORT_WINDOW = 20
+LONG_WINDOW = 50
+LOOKBACK_DAYS = 365 * 5 + 2
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchBar:
+    session: date
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+
+@dataclass(frozen=True, slots=True)
+class DailyTrade:
+    symbol: str
+    entry_date: date
+    entry_price: Decimal
+    exit_date: date | None
+    exit_price: Decimal | None
+    quantity: Decimal
+    pnl: Decimal | None
+    return_pct: Decimal | None
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestSummary:
+    symbol: str
+    start_date: date
+    end_date: date
+    bars: int
+    total_return: Decimal
+    win_rate: Decimal
+    max_drawdown: Decimal
+    trade_count: int
+    open_position: bool
+    trades: tuple[DailyTrade, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NextDayCandidate:
+    symbol: str
+    signal_date: date
+    action: str
+    confidence: Decimal
+    planned_execution: str
+    last_close: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DailyResearchReport:
+    generated_at: datetime
+    candidates: tuple[NextDayCandidate, ...]
+    backtests: tuple[BacktestSummary, ...]
+
+
+class DailyResearchService:
+    """Generate day-by-day research outputs from real OHLCV bars.
+
+    This service does not place live trades. Candidate actions are research/paper-trading intents
+    generated at the latest close with execution deferred to the next session open.
+    """
+
+    def __init__(self, *, timeout_seconds: int = 30) -> None:
+        if timeout_seconds <= 0:
+            msg = "timeout_seconds must be positive"
+            raise ValueError(msg)
+        self._timeout_seconds = timeout_seconds
+
+    def build_report(
+        self,
+        symbols: tuple[str, ...] = DEFAULT_RESEARCH_SYMBOLS,
+        *,
+        end: date | None = None,
+    ) -> DailyResearchReport:
+        resolved_end = end or datetime.now(UTC).date()
+        start = resolved_end - timedelta(days=LOOKBACK_DAYS)
+        backtests: list[BacktestSummary] = []
+        candidates: list[NextDayCandidate] = []
+        for symbol in symbols:
+            bars = self._fetch_bars(symbol.upper(), start, resolved_end)
+            if len(bars) <= LONG_WINDOW + 1:
+                continue
+            backtest = self._backtest(symbol.upper(), bars)
+            backtests.append(backtest)
+            candidates.append(self._candidate(symbol.upper(), bars, backtest.open_position))
+        return DailyResearchReport(
+            generated_at=datetime.now(UTC),
+            candidates=tuple(candidates),
+            backtests=tuple(backtests),
+        )
+
+    def _backtest(self, symbol: str, bars: list[ResearchBar]) -> BacktestSummary:
+        cash = STARTING_CAPITAL
+        quantity = Decimal("0")
+        entry_price: Decimal | None = None
+        entry_date: date | None = None
+        peak_equity = STARTING_CAPITAL
+        max_drawdown = Decimal("0")
+        trades: list[DailyTrade] = []
+
+        for index in range(LONG_WINDOW, len(bars) - 1):
+            signal = self._signal(bars, index, quantity > 0)
+            fill_bar = bars[index + 1]
+            if signal == "BUY" and quantity == 0:
+                quantity = (cash / fill_bar.open).quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+                cash -= quantity * fill_bar.open
+                entry_price = fill_bar.open
+                entry_date = fill_bar.session
+            elif (
+                signal == "SELL"
+                and quantity > 0
+                and entry_price is not None
+                and entry_date is not None
+            ):
+                cash += quantity * fill_bar.open
+                pnl = (fill_bar.open - entry_price) * quantity
+                trades.append(
+                    DailyTrade(
+                        symbol=symbol,
+                        entry_date=entry_date,
+                        entry_price=entry_price,
+                        exit_date=fill_bar.session,
+                        exit_price=fill_bar.open,
+                        quantity=quantity,
+                        pnl=pnl,
+                        return_pct=fill_bar.open / entry_price - 1,
+                        reason="signal_on_close_fill_next_open",
+                    )
+                )
+                quantity = Decimal("0")
+                entry_price = None
+                entry_date = None
+            equity = cash + quantity * bars[index].close
+            peak_equity = max(peak_equity, equity)
+            drawdown = equity / peak_equity - 1
+            max_drawdown = min(max_drawdown, drawdown)
+
+        last_equity = cash + quantity * bars[-1].close
+        closed_trades = [trade for trade in trades if trade.pnl is not None]
+        winners = [trade for trade in closed_trades if trade.pnl is not None and trade.pnl > 0]
+        win_rate = (
+            Decimal(len(winners)) / Decimal(len(closed_trades))
+            if closed_trades
+            else Decimal("0")
+        )
+        if quantity > 0 and entry_price is not None and entry_date is not None:
+            trades.append(
+                DailyTrade(
+                    symbol=symbol,
+                    entry_date=entry_date,
+                    entry_price=entry_price,
+                    exit_date=None,
+                    exit_price=None,
+                    quantity=quantity,
+                    pnl=None,
+                    return_pct=None,
+                    reason="open_position_marked_to_latest_close",
+                )
+            )
+        return BacktestSummary(
+            symbol=symbol,
+            start_date=bars[0].session,
+            end_date=bars[-1].session,
+            bars=len(bars),
+            total_return=last_equity / STARTING_CAPITAL - 1,
+            win_rate=win_rate,
+            max_drawdown=max_drawdown,
+            trade_count=len(trades),
+            open_position=quantity > 0,
+            trades=tuple(trades[-8:]),
+        )
+
+    def _candidate(
+        self, symbol: str, bars: list[ResearchBar], open_position: bool
+    ) -> NextDayCandidate:
+        index = len(bars) - 1
+        signal = self._signal(bars, index, open_position)
+        latest = bars[index]
+        short = self._average_close(bars, index, SHORT_WINDOW)
+        long = self._average_close(bars, index, LONG_WINDOW)
+        momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
+        confidence = min(Decimal("0.95"), max(Decimal("0.10"), abs(short / long - 1) * 10))
+        reasons = (
+            f"close={latest.close.quantize(Decimal('0.0001'))}",
+            f"sma20={short.quantize(Decimal('0.0001'))}",
+            f"sma50={long.quantize(Decimal('0.0001'))}",
+            f"20d_momentum={momentum.quantize(Decimal('0.0001'))}",
+            "signal_on_close_fill_next_open",
+        )
+        return NextDayCandidate(
+            symbol=symbol,
+            signal_date=latest.session,
+            action=signal,
+            confidence=confidence,
+            planned_execution="next_session_open_paper_candidate",
+            last_close=latest.close,
+            stop_loss=latest.close * Decimal("0.97") if signal == "BUY" else None,
+            take_profit=latest.close * Decimal("1.06") if signal == "BUY" else None,
+            reasons=reasons,
+        )
+
+    def _signal(self, bars: list[ResearchBar], index: int, open_position: bool) -> str:
+        latest = bars[index]
+        short = self._average_close(bars, index, SHORT_WINDOW)
+        long = self._average_close(bars, index, LONG_WINDOW)
+        momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
+        if not open_position and latest.close > short > long and momentum > 0:
+            return "BUY"
+        if open_position and (latest.close < short or short < long):
+            return "SELL"
+        return "HOLD"
+
+    @staticmethod
+    def _average_close(bars: list[ResearchBar], index: int, window: int) -> Decimal:
+        closes = [float(bar.close) for bar in bars[index - window + 1 : index + 1]]
+        return Decimal(str(mean(closes)))
+
+    def _fetch_bars(self, symbol: str, start: date, end: date) -> list[ResearchBar]:
+        period1 = int(datetime.combine(start, time.min, tzinfo=UTC).timestamp())
+        period2 = int(datetime.combine(end + timedelta(days=1), time.min, tzinfo=UTC).timestamp())
+        query = urllib.parse.urlencode(
+            {"period1": period1, "period2": period2, "interval": "1d", "events": "history"}
+        )
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?{query}"
+        request = urllib.request.Request(url, headers={"User-Agent": "ai-quant-platform/0.1"})
+        with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+            payload = json.loads(response.read())
+        result = payload["chart"]["result"][0]
+        timestamps = result["timestamp"]
+        quote = result["indicators"]["quote"][0]
+        bars: list[ResearchBar] = []
+        for raw_timestamp, raw_open, high, low, close, volume in zip(
+            timestamps,
+            quote["open"],
+            quote["high"],
+            quote["low"],
+            quote["close"],
+            quote["volume"],
+            strict=True,
+        ):
+            if raw_open is None or high is None or low is None or close is None:
+                continue
+            bars.append(
+                ResearchBar(
+                    session=datetime.fromtimestamp(raw_timestamp, tz=UTC).date(),
+                    open=Decimal(str(raw_open)),
+                    high=Decimal(str(high)),
+                    low=Decimal(str(low)),
+                    close=Decimal(str(close)),
+                    volume=int(volume or 0),
+                )
+            )
+        return bars
