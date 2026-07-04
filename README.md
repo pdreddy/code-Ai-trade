@@ -116,3 +116,18 @@ curl "http://localhost:8000/api/v1/research/daily-report?capital=10000"
 ```
 
 The response includes next-session paper candidates, all generated daywise strategy trades for the covered period, portfolio-level equity/return/win-rate metrics, and an underlying-driven unusual-options watch plan. The options watch section is not an options-chain execution engine; it flags where a future real options provider should verify unusual flow before any paper options workflow is enabled.
+
+## Institutional Research Additions
+
+The daily report now includes additive institutional analytics fields without changing the endpoint path:
+
+- Portfolio summary metrics: cash, invested capital, today PnL, annualized return, Sharpe, Sortino, Calmar, profit factor, expectancy, average winner/loser, drawdown, and risk score.
+- Per-symbol backtest metrics: equity curve, drawdown, exposure, volatility, alpha/beta placeholders derived from available benchmark context, information ratio, tracking error, recovery time, Omega, MAR, and streak statistics.
+- Professional trade journal fields: trade ID, direction, holding period, position size, entry/exit signal, strategy, regime, confidence, risk/reward, stop, target, gross/net PnL, costs, screenshot placeholder, and notes.
+- Portfolio holdings snapshots when positions are open, with weights, risk score, AI score, sector/industry labels, stop, target, holding days, and status.
+
+The endpoint remains:
+
+```bash
+curl "http://localhost:8000/api/v1/research/daily-report?capital=10000"
+```

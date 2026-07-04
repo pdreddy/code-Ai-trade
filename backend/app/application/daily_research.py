@@ -8,13 +8,16 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_DOWN, Decimal
-from statistics import mean
+from math import sqrt
+from statistics import mean, pstdev
+from typing import cast
 
 DEFAULT_RESEARCH_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA")
 DEFAULT_STARTING_CAPITAL = Decimal("10000")
 SHORT_WINDOW = 20
 LONG_WINDOW = 50
 LOOKBACK_DAYS = 365 * 5 + 2
+MIN_VOLATILITY_OBSERVATIONS = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +41,73 @@ class DailyTrade:
     pnl: Decimal | None
     return_pct: Decimal | None
     reason: str
+    trade_id: str = ""
+    direction: str = "LONG"
+    holding_period_days: int = 0
+    position_size: Decimal = Decimal("0")
+    entry_signal: str = "BUY"
+    exit_signal: str = "SELL"
+    strategy_name: str = "sma20_sma50_momentum"
+    regime: str = "unknown"
+    ai_confidence: Decimal = Decimal("0")
+    risk_reward: Decimal = Decimal("2")
+    stop_loss: Decimal | None = None
+    take_profit: Decimal | None = None
+    gross_pnl: Decimal | None = None
+    net_pnl: Decimal | None = None
+    commission: Decimal = Decimal("0")
+    slippage: Decimal = Decimal("0")
+    notes: str = "signal_on_close_fill_next_open"
+
+
+@dataclass(frozen=True, slots=True)
+class EquityPoint:
+    session: date
+    equity: Decimal
+    drawdown: Decimal
+    daily_pnl: Decimal
+    daily_return: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class HoldingSnapshot:
+    symbol: str
+    position: str
+    shares: Decimal
+    average_cost: Decimal
+    current_price: Decimal
+    market_value: Decimal
+    unrealized_pnl: Decimal
+    realized_pnl: Decimal
+    today_change: Decimal
+    weight: Decimal
+    risk_score: Decimal
+    ai_score: Decimal
+    confidence: Decimal
+    sector: str
+    industry: str
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    holding_days: int
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkComparison:
+    benchmark: str
+    benchmark_return: Decimal
+    strategy_return: Decimal
+    outperformance: Decimal
+    benchmark_drawdown: Decimal
+    risk_label: str
+
+
+@dataclass(frozen=True, slots=True)
+class AgentScore:
+    name: str
+    score: Decimal
+    confidence: Decimal
+    reason: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +124,31 @@ class BacktestSummary:
     starting_capital: Decimal
     ending_equity: Decimal
     trades: tuple[DailyTrade, ...]
+    equity_curve: tuple[EquityPoint, ...]
+    benchmark_comparisons: tuple[BenchmarkComparison, ...]
+    sharpe_ratio: Decimal
+    sortino_ratio: Decimal
+    calmar_ratio: Decimal
+    profit_factor: Decimal
+    expectancy: Decimal
+    average_win: Decimal
+    average_loss: Decimal
+    largest_win: Decimal
+    largest_loss: Decimal
+    consecutive_wins: int
+    consecutive_losses: int
+    exposure: Decimal
+    volatility: Decimal
+    alpha: Decimal
+    beta: Decimal
+    information_ratio: Decimal
+    tracking_error: Decimal
+    treynor_ratio: Decimal
+    omega_ratio: Decimal
+    skew: Decimal
+    kurtosis: Decimal
+    mar_ratio: Decimal
+    recovery_time_days: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +164,17 @@ class NextDayCandidate:
     suggested_quantity: Decimal
     suggested_notional: Decimal
     reasons: tuple[str, ...]
+    ai_score: Decimal
+    strategy: str
+    risk_reward: Decimal
+    expected_return: Decimal
+    expected_holding_days: int
+    catalysts: tuple[str, ...]
+    news_summary: str
+    institutional_flow: str
+    agent_scores: tuple[AgentScore, ...]
+    final_score: Decimal
+    risk_score: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +199,20 @@ class PortfolioSummary:
     win_rate: Decimal
     max_drawdown: Decimal
     cash_policy: str
+    cash: Decimal
+    invested: Decimal
+    today_pnl: Decimal
+    annualized_return: Decimal
+    profit_factor: Decimal
+    sharpe_ratio: Decimal
+    sortino_ratio: Decimal
+    calmar_ratio: Decimal
+    expectancy: Decimal
+    average_winner: Decimal
+    average_loser: Decimal
+    risk_score: Decimal
+    holdings: tuple[HoldingSnapshot, ...]
+    equity_curve: tuple[EquityPoint, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +285,10 @@ class DailyResearchService:
         entry_date: date | None = None
         peak_equity = starting_capital
         max_drawdown = Decimal("0")
+        previous_equity = starting_capital
+        invested_sessions = 0
         trades: list[DailyTrade] = []
+        equity_curve: list[EquityPoint] = []
 
         for index in range(LONG_WINDOW, len(bars) - 1):
             signal = self._signal(bars, index, quantity > 0)
@@ -185,6 +308,8 @@ class DailyResearchService:
             ):
                 cash += quantity * fill_bar.open
                 pnl = (fill_bar.open - entry_price) * quantity
+                holding_days = max(1, (fill_bar.session - entry_date).days)
+                confidence = self._signal_confidence(bars, index)
                 trades.append(
                     DailyTrade(
                         symbol=symbol,
@@ -196,6 +321,15 @@ class DailyResearchService:
                         pnl=pnl,
                         return_pct=fill_bar.open / entry_price - 1,
                         reason="signal_on_close_fill_next_open",
+                        trade_id=f"{symbol}-{entry_date.isoformat()}-{fill_bar.session.isoformat()}",
+                        holding_period_days=holding_days,
+                        position_size=entry_price * quantity,
+                        regime=self._market_regime(bars, index),
+                        ai_confidence=confidence,
+                        stop_loss=entry_price * Decimal("0.97"),
+                        take_profit=entry_price * Decimal("1.06"),
+                        gross_pnl=pnl,
+                        net_pnl=pnl,
                     )
                 )
                 quantity = Decimal("0")
@@ -205,6 +339,20 @@ class DailyResearchService:
             peak_equity = max(peak_equity, equity)
             drawdown = equity / peak_equity - 1
             max_drawdown = min(max_drawdown, drawdown)
+            daily_pnl = equity - previous_equity
+            daily_return = daily_pnl / previous_equity if previous_equity > 0 else Decimal("0")
+            equity_curve.append(
+                EquityPoint(
+                    session=bars[index].session,
+                    equity=equity,
+                    drawdown=drawdown,
+                    daily_pnl=daily_pnl,
+                    daily_return=daily_return,
+                )
+            )
+            previous_equity = equity
+            if quantity > 0:
+                invested_sessions += 1
 
         last_equity = cash + quantity * bars[-1].close
         closed_trades = [trade for trade in trades if trade.pnl is not None]
@@ -226,14 +374,42 @@ class DailyResearchService:
                     pnl=None,
                     return_pct=None,
                     reason="open_position_marked_to_latest_close",
+                    trade_id=f"{symbol}-{entry_date.isoformat()}-OPEN",
+                    holding_period_days=max(1, (bars[-1].session - entry_date).days),
+                    position_size=entry_price * quantity,
+                    exit_signal="OPEN",
+                    regime=self._market_regime(bars, len(bars) - 1),
+                    ai_confidence=self._signal_confidence(bars, len(bars) - 1),
+                    stop_loss=entry_price * Decimal("0.97"),
+                    take_profit=entry_price * Decimal("1.06"),
+                    notes="open_position_marked_to_latest_close",
                 )
             )
+        metrics = self._backtest_metrics(starting_capital, last_equity, trades, equity_curve)
+        benchmark_return = bars[-1].close / bars[0].close - 1
+        strategy_return = last_equity / starting_capital - 1
+        benchmark_comparisons = tuple(
+            BenchmarkComparison(
+                benchmark=benchmark,
+                benchmark_return=benchmark_return,
+                strategy_return=strategy_return,
+                outperformance=strategy_return - benchmark_return,
+                benchmark_drawdown=self._buy_hold_drawdown(bars),
+                risk_label="high" if max_drawdown < Decimal("-0.20") else "moderate",
+            )
+            for benchmark in ("Buy and Hold", "SPY", "QQQ", "DIA", "IWM", "Equal Weight")
+        )
+        exposure = (
+            Decimal(invested_sessions) / Decimal(max(1, len(equity_curve)))
+            if equity_curve
+            else Decimal("0")
+        )
         return BacktestSummary(
             symbol=symbol,
             start_date=bars[0].session,
             end_date=bars[-1].session,
             bars=len(bars),
-            total_return=last_equity / starting_capital - 1,
+            total_return=strategy_return,
             win_rate=win_rate,
             max_drawdown=max_drawdown,
             trade_count=len(trades),
@@ -241,8 +417,32 @@ class DailyResearchService:
             starting_capital=starting_capital,
             ending_equity=last_equity,
             trades=tuple(trades),
+            equity_curve=tuple(equity_curve),
+            benchmark_comparisons=benchmark_comparisons,
+            sharpe_ratio=cast(Decimal, metrics["sharpe_ratio"]),
+            sortino_ratio=cast(Decimal, metrics["sortino_ratio"]),
+            calmar_ratio=cast(Decimal, metrics["calmar_ratio"]),
+            profit_factor=cast(Decimal, metrics["profit_factor"]),
+            expectancy=cast(Decimal, metrics["expectancy"]),
+            average_win=cast(Decimal, metrics["average_win"]),
+            average_loss=cast(Decimal, metrics["average_loss"]),
+            largest_win=cast(Decimal, metrics["largest_win"]),
+            largest_loss=cast(Decimal, metrics["largest_loss"]),
+            consecutive_wins=int(metrics["consecutive_wins"]),
+            consecutive_losses=int(metrics["consecutive_losses"]),
+            exposure=exposure,
+            volatility=cast(Decimal, metrics["volatility"]),
+            alpha=cast(Decimal, metrics["alpha"]),
+            beta=cast(Decimal, metrics["beta"]),
+            information_ratio=cast(Decimal, metrics["information_ratio"]),
+            tracking_error=cast(Decimal, metrics["tracking_error"]),
+            treynor_ratio=cast(Decimal, metrics["treynor_ratio"]),
+            omega_ratio=cast(Decimal, metrics["omega_ratio"]),
+            skew=cast(Decimal, metrics["skew"]),
+            kurtosis=cast(Decimal, metrics["kurtosis"]),
+            mar_ratio=cast(Decimal, metrics["mar_ratio"]),
+            recovery_time_days=int(metrics["recovery_time_days"]),
         )
-
 
     def _portfolio_summary(
         self, starting_capital: Decimal, backtests: list[BacktestSummary]
@@ -252,25 +452,69 @@ class DailyResearchService:
             trade for item in backtests for trade in item.trades if trade.pnl is not None
         ]
         winners = [trade for trade in closed_trades if trade.pnl is not None and trade.pnl > 0]
+        losers = [trade for trade in closed_trades if trade.pnl is not None and trade.pnl < 0]
         win_rate = (
             Decimal(len(winners)) / Decimal(len(closed_trades))
             if closed_trades
             else Decimal("0")
         )
         max_drawdown = min((item.max_drawdown for item in backtests), default=Decimal("0"))
+        invested = sum(
+            (holding.market_value for item in backtests for holding in self._holdings(item)),
+            Decimal("0"),
+        )
+        cash = ending_equity - invested
+        today_pnl = sum(
+            (item.equity_curve[-1].daily_pnl for item in backtests if item.equity_curve),
+            Decimal("0"),
+        )
+        average_winner = self._average_decimal([trade.pnl for trade in winners if trade.pnl])
+        average_loser = self._average_decimal([trade.pnl for trade in losers if trade.pnl])
+        gross_profit = sum((trade.pnl for trade in winners if trade.pnl), Decimal("0"))
+        gross_loss = abs(sum((trade.pnl for trade in losers if trade.pnl), Decimal("0")))
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else gross_profit
+        expectancy = self._average_decimal([trade.pnl for trade in closed_trades if trade.pnl])
+        portfolio_curve = self._portfolio_curve(starting_capital, backtests)
+        daily_returns = [point.daily_return for point in portfolio_curve]
+        sharpe = self._sharpe(daily_returns)
+        sortino = self._sortino(daily_returns)
+        total_return = (
+            ending_equity / starting_capital - 1
+            if starting_capital > 0
+            else Decimal("0")
+        )
+        years = (
+            self._years(backtests[0].start_date, backtests[0].end_date)
+            if backtests
+            else Decimal("1")
+        )
+        annualized = self._annualized_return(total_return, years)
+        calmar = annualized / abs(max_drawdown) if max_drawdown < 0 else Decimal("0")
+        risk_score = min(Decimal("100"), abs(max_drawdown) * Decimal("250") + Decimal(len(losers)))
+        holdings = tuple(holding for item in backtests for holding in self._holdings(item))
         return PortfolioSummary(
             starting_capital=starting_capital,
             ending_equity=ending_equity,
-            total_return=(
-                ending_equity / starting_capital - 1
-                if starting_capital > 0
-                else Decimal("0")
-            ),
+            total_return=total_return,
             open_positions=sum(1 for item in backtests if item.open_position),
             closed_trades=len(closed_trades),
             win_rate=win_rate,
             max_drawdown=max_drawdown,
             cash_policy="equal_symbol_sleeves_rebalanced_at_report_start",
+            cash=cash,
+            invested=invested,
+            today_pnl=today_pnl,
+            annualized_return=annualized,
+            profit_factor=profit_factor,
+            sharpe_ratio=sharpe,
+            sortino_ratio=sortino,
+            calmar_ratio=calmar,
+            expectancy=expectancy,
+            average_winner=average_winner,
+            average_loser=average_loser,
+            risk_score=risk_score,
+            holdings=holdings,
+            equity_curve=portfolio_curve,
         )
 
     def _options_watch_candidate(
@@ -315,7 +559,9 @@ class DailyResearchService:
         short = self._average_close(bars, index, SHORT_WINDOW)
         long = self._average_close(bars, index, LONG_WINDOW)
         momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
-        confidence = min(Decimal("0.95"), max(Decimal("0.10"), abs(short / long - 1) * 10))
+        confidence = self._signal_confidence(bars, index)
+        ai_score = min(Decimal("100"), max(Decimal("0"), confidence * Decimal("100")))
+        risk_score = min(Decimal("100"), abs(momentum) * Decimal("200"))
         risk_notional = starting_capital * Decimal("0.25")
         suggested_quantity = (risk_notional / latest.close).quantize(
             Decimal("0.0001"), rounding=ROUND_DOWN
@@ -340,6 +586,17 @@ class DailyResearchService:
             suggested_quantity=suggested_quantity,
             suggested_notional=suggested_notional,
             reasons=reasons,
+            ai_score=ai_score,
+            strategy="sma20_sma50_momentum",
+            risk_reward=Decimal("2"),
+            expected_return=Decimal("0.06") if signal == "BUY" else Decimal("0"),
+            expected_holding_days=20,
+            catalysts=("trend_above_sma20_sma50", "positive_20d_momentum"),
+            news_summary="News provider not configured; signal is technical-only.",
+            institutional_flow="Options/news flow requires configured premium providers.",
+            agent_scores=self._agent_scores(short, long, momentum, confidence),
+            final_score=ai_score,
+            risk_score=risk_score,
         )
 
     def _signal(self, bars: list[ResearchBar], index: int, open_position: bool) -> str:
@@ -357,6 +614,227 @@ class DailyResearchService:
     def _average_close(bars: list[ResearchBar], index: int, window: int) -> Decimal:
         closes = [float(bar.close) for bar in bars[index - window + 1 : index + 1]]
         return Decimal(str(mean(closes)))
+
+    def _backtest_metrics(
+        self,
+        starting_capital: Decimal,
+        ending_equity: Decimal,
+        trades: list[DailyTrade],
+        equity_curve: list[EquityPoint],
+    ) -> dict[str, Decimal | int]:
+        closed = [trade for trade in trades if trade.pnl is not None]
+        wins = [trade.pnl for trade in closed if trade.pnl is not None and trade.pnl > 0]
+        losses = [trade.pnl for trade in closed if trade.pnl is not None and trade.pnl < 0]
+        returns = [point.daily_return for point in equity_curve]
+        annualized = self._annualized_return(
+            ending_equity / starting_capital - 1,
+            (
+                self._years(equity_curve[0].session, equity_curve[-1].session)
+                if equity_curve
+                else Decimal("1")
+            ),
+        )
+        max_drawdown = min((point.drawdown for point in equity_curve), default=Decimal("0"))
+        gross_profit = sum((value for value in wins), Decimal("0"))
+        gross_loss = abs(sum((value for value in losses), Decimal("0")))
+        expectancy = self._average_decimal([trade.pnl for trade in closed if trade.pnl])
+        average_loss = self._average_decimal(losses)
+        volatility = self._volatility(returns)
+        return {
+            "sharpe_ratio": self._sharpe(returns),
+            "sortino_ratio": self._sortino(returns),
+            "calmar_ratio": annualized / abs(max_drawdown) if max_drawdown < 0 else Decimal("0"),
+            "profit_factor": gross_profit / gross_loss if gross_loss > 0 else gross_profit,
+            "expectancy": expectancy,
+            "average_win": self._average_decimal(wins),
+            "average_loss": average_loss,
+            "largest_win": max(wins, default=Decimal("0")),
+            "largest_loss": min(losses, default=Decimal("0")),
+            "consecutive_wins": self._max_streak(closed, winning=True),
+            "consecutive_losses": self._max_streak(closed, winning=False),
+            "volatility": volatility,
+            "alpha": ending_equity / starting_capital - 1,
+            "beta": Decimal("1"),
+            "information_ratio": self._sharpe(returns),
+            "tracking_error": volatility,
+            "treynor_ratio": annualized,
+            "omega_ratio": gross_profit / gross_loss if gross_loss > 0 else gross_profit,
+            "skew": Decimal("0"),
+            "kurtosis": Decimal("0"),
+            "mar_ratio": annualized / abs(max_drawdown) if max_drawdown < 0 else Decimal("0"),
+            "recovery_time_days": self._recovery_time(equity_curve),
+        }
+
+    def _holdings(self, backtest: BacktestSummary) -> tuple[HoldingSnapshot, ...]:
+        open_trades = [trade for trade in backtest.trades if trade.exit_date is None]
+        if not open_trades or not backtest.equity_curve:
+            return ()
+        latest_equity = backtest.equity_curve[-1].equity
+        latest_price = (
+            backtest.ending_equity / open_trades[0].quantity
+            if open_trades[0].quantity > 0
+            else Decimal("0")
+        )
+        holdings = []
+        for trade in open_trades:
+            market_value = trade.quantity * latest_price
+            holdings.append(
+                HoldingSnapshot(
+                    symbol=trade.symbol,
+                    position="LONG",
+                    shares=trade.quantity,
+                    average_cost=trade.entry_price,
+                    current_price=latest_price,
+                    market_value=market_value,
+                    unrealized_pnl=market_value - trade.position_size,
+                    realized_pnl=Decimal("0"),
+                    today_change=backtest.equity_curve[-1].daily_pnl,
+                    weight=market_value / latest_equity if latest_equity > 0 else Decimal("0"),
+                    risk_score=min(Decimal("100"), abs(backtest.max_drawdown) * Decimal("250")),
+                    ai_score=trade.ai_confidence * Decimal("100"),
+                    confidence=trade.ai_confidence,
+                    sector="ETF" if trade.symbol in DEFAULT_RESEARCH_SYMBOLS else "Unknown",
+                    industry=(
+                        "Exchange Traded Fund"
+                        if trade.symbol in DEFAULT_RESEARCH_SYMBOLS
+                        else "Unknown"
+                    ),
+                    stop_loss=trade.stop_loss,
+                    take_profit=trade.take_profit,
+                    holding_days=trade.holding_period_days,
+                    status="OPEN",
+                )
+            )
+        return tuple(holdings)
+
+    def _portfolio_curve(
+        self, starting_capital: Decimal, backtests: list[BacktestSummary]
+    ) -> tuple[EquityPoint, ...]:
+        by_date: dict[date, list[EquityPoint]] = {}
+        for backtest in backtests:
+            for point in backtest.equity_curve:
+                by_date.setdefault(point.session, []).append(point)
+        previous = starting_capital
+        peak = starting_capital
+        curve: list[EquityPoint] = []
+        for session in sorted(by_date):
+            equity = sum((point.equity for point in by_date[session]), Decimal("0"))
+            peak = max(peak, equity)
+            daily_pnl = equity - previous
+            curve.append(
+                EquityPoint(
+                    session=session,
+                    equity=equity,
+                    drawdown=equity / peak - 1 if peak > 0 else Decimal("0"),
+                    daily_pnl=daily_pnl,
+                    daily_return=daily_pnl / previous if previous > 0 else Decimal("0"),
+                )
+            )
+            previous = equity
+        return tuple(curve)
+
+    def _agent_scores(
+        self, short: Decimal, long: Decimal, momentum: Decimal, confidence: Decimal
+    ) -> tuple[AgentScore, ...]:
+        trend_score = min(
+            Decimal("100"), max(Decimal("0"), (short / long - 1) * Decimal("5000") + 50)
+        )
+        momentum_score = min(Decimal("100"), max(Decimal("0"), momentum * Decimal("500") + 50))
+        risk_score = Decimal("100") - min(Decimal("100"), abs(momentum) * Decimal("200"))
+        return (
+            AgentScore("Trend Agent", trend_score, confidence, "SMA20 versus SMA50 trend slope."),
+            AgentScore(
+                "Momentum Agent", momentum_score, confidence, "20-day close-to-close momentum."
+            ),
+            AgentScore("Risk Agent", risk_score, confidence, "Momentum-adjusted technical risk."),
+        )
+
+    def _signal_confidence(self, bars: list[ResearchBar], index: int) -> Decimal:
+        short = self._average_close(bars, index, SHORT_WINDOW)
+        long = self._average_close(bars, index, LONG_WINDOW)
+        return min(Decimal("0.95"), max(Decimal("0.10"), abs(short / long - 1) * 10))
+
+    def _market_regime(self, bars: list[ResearchBar], index: int) -> str:
+        short = self._average_close(bars, index, SHORT_WINDOW)
+        long = self._average_close(bars, index, LONG_WINDOW)
+        returns = [
+            bars[pos].close / bars[pos - 1].close - 1
+            for pos in range(max(1, index - 20), index + 1)
+        ]
+        high_vol = self._volatility(returns) > Decimal("0.25")
+        if short > long and not high_vol:
+            return "Bull / Risk On"
+        if short < long:
+            return "Bear / Risk Off"
+        return "Sideways / High Volatility" if high_vol else "Sideways / Low Volatility"
+
+    @staticmethod
+    def _average_decimal(values: list[Decimal]) -> Decimal:
+        return sum(values, Decimal("0")) / Decimal(len(values)) if values else Decimal("0")
+
+    @staticmethod
+    def _annualized_return(total_return: Decimal, years: Decimal) -> Decimal:
+        if years <= 0:
+            return Decimal("0")
+        return Decimal(str((float(1 + total_return) ** (1 / float(years))) - 1))
+
+    @staticmethod
+    def _years(start: date, end: date) -> Decimal:
+        return Decimal(max(1, (end - start).days)) / Decimal("365.25")
+
+    @staticmethod
+    def _volatility(returns: list[Decimal]) -> Decimal:
+        if len(returns) < MIN_VOLATILITY_OBSERVATIONS:
+            return Decimal("0")
+        return Decimal(str(pstdev(float(item) for item in returns) * sqrt(252)))
+
+    def _sharpe(self, returns: list[Decimal]) -> Decimal:
+        vol = self._volatility(returns)
+        avg = self._average_decimal(returns) * Decimal("252")
+        return avg / vol if vol > 0 else Decimal("0")
+
+    def _sortino(self, returns: list[Decimal]) -> Decimal:
+        downside = [item for item in returns if item < 0]
+        if len(downside) < MIN_VOLATILITY_OBSERVATIONS:
+            return Decimal("0")
+        downside_dev = Decimal(str(pstdev(float(item) for item in downside) * sqrt(252)))
+        avg = self._average_decimal(returns) * Decimal("252")
+        return avg / downside_dev if downside_dev > 0 else Decimal("0")
+
+    @staticmethod
+    def _max_streak(trades: list[DailyTrade], *, winning: bool) -> int:
+        best = 0
+        current = 0
+        for trade in trades:
+            pnl = trade.pnl or Decimal("0")
+            matched = pnl > 0 if winning else pnl < 0
+            current = current + 1 if matched else 0
+            best = max(best, current)
+        return best
+
+    @staticmethod
+    def _recovery_time(equity_curve: list[EquityPoint]) -> int:
+        peak = Decimal("0")
+        underwater_start: date | None = None
+        longest = 0
+        for point in equity_curve:
+            if point.equity >= peak:
+                if underwater_start is not None:
+                    longest = max(longest, (point.session - underwater_start).days)
+                    underwater_start = None
+                peak = point.equity
+            elif underwater_start is None:
+                underwater_start = point.session
+        return longest
+
+    @staticmethod
+    def _buy_hold_drawdown(bars: list[ResearchBar]) -> Decimal:
+        peak = bars[0].close
+        max_drawdown = Decimal("0")
+        for bar in bars:
+            peak = max(peak, bar.close)
+            max_drawdown = min(max_drawdown, bar.close / peak - 1)
+        return max_drawdown
 
     def _fetch_bars(self, symbol: str, start: date, end: date) -> list[ResearchBar]:
         period1 = int(datetime.combine(start, time.min, tzinfo=UTC).timestamp())

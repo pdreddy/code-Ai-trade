@@ -8,9 +8,13 @@ from pydantic import BaseModel, ConfigDict
 
 from backend.app.application.daily_research import (
     DEFAULT_RESEARCH_SYMBOLS,
+    AgentScore,
     BacktestSummary,
+    BenchmarkComparison,
     DailyResearchService,
     DailyTrade,
+    EquityPoint,
+    HoldingSnapshot,
     NextDayCandidate,
     OptionsWatchCandidate,
     PortfolioSummary,
@@ -18,6 +22,60 @@ from backend.app.application.daily_research import (
 
 router = APIRouter(prefix="/research", tags=["research"])
 CAPITAL_QUERY = Query(default=Decimal("10000"), gt=0)
+
+
+class EquityPointResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    session: date
+    equity: Decimal
+    drawdown: Decimal
+    daily_pnl: Decimal
+    daily_return: Decimal
+
+
+class BenchmarkComparisonResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    benchmark: str
+    benchmark_return: Decimal
+    strategy_return: Decimal
+    outperformance: Decimal
+    benchmark_drawdown: Decimal
+    risk_label: str
+
+
+class AgentScoreResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    score: Decimal
+    confidence: Decimal
+    reason: str
+
+
+class HoldingResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    position: str
+    shares: Decimal
+    average_cost: Decimal
+    current_price: Decimal
+    market_value: Decimal
+    unrealized_pnl: Decimal
+    realized_pnl: Decimal
+    today_change: Decimal
+    weight: Decimal
+    risk_score: Decimal
+    ai_score: Decimal
+    confidence: Decimal
+    sector: str
+    industry: str
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    holding_days: int
+    status: str
 
 
 class TradeResponse(BaseModel):
@@ -32,6 +90,24 @@ class TradeResponse(BaseModel):
     pnl: Decimal | None
     return_pct: Decimal | None
     reason: str
+    trade_id: str
+    direction: str
+    holding_period_days: int
+    position_size: Decimal
+    entry_signal: str
+    exit_signal: str
+    strategy_name: str
+    regime: str
+    ai_confidence: Decimal
+    risk_reward: Decimal
+    stop_loss: Decimal | None
+    take_profit: Decimal | None
+    gross_pnl: Decimal | None
+    net_pnl: Decimal | None
+    commission: Decimal
+    slippage: Decimal
+    screenshot_placeholder: str
+    notes: str
 
 
 class BacktestResponse(BaseModel):
@@ -49,6 +125,31 @@ class BacktestResponse(BaseModel):
     starting_capital: Decimal
     ending_equity: Decimal
     trades: tuple[TradeResponse, ...]
+    equity_curve: tuple[EquityPointResponse, ...]
+    benchmark_comparisons: tuple[BenchmarkComparisonResponse, ...]
+    sharpe_ratio: Decimal
+    sortino_ratio: Decimal
+    calmar_ratio: Decimal
+    profit_factor: Decimal
+    expectancy: Decimal
+    average_win: Decimal
+    average_loss: Decimal
+    largest_win: Decimal
+    largest_loss: Decimal
+    consecutive_wins: int
+    consecutive_losses: int
+    recovery_time_days: int
+    exposure: Decimal
+    volatility: Decimal
+    alpha: Decimal
+    beta: Decimal
+    information_ratio: Decimal
+    tracking_error: Decimal
+    treynor_ratio: Decimal
+    omega_ratio: Decimal
+    skew: Decimal
+    kurtosis: Decimal
+    mar_ratio: Decimal
 
 
 class CandidateResponse(BaseModel):
@@ -65,6 +166,17 @@ class CandidateResponse(BaseModel):
     suggested_quantity: Decimal
     suggested_notional: Decimal
     reasons: tuple[str, ...]
+    ai_score: Decimal
+    strategy: str
+    risk_reward: Decimal
+    expected_return: Decimal
+    expected_holding_days: int
+    catalysts: tuple[str, ...]
+    news_summary: str
+    institutional_flow: str
+    agent_scores: tuple[AgentScoreResponse, ...]
+    final_score: Decimal
+    risk_score: Decimal
 
 
 class PortfolioResponse(BaseModel):
@@ -78,6 +190,20 @@ class PortfolioResponse(BaseModel):
     win_rate: Decimal
     max_drawdown: Decimal
     cash_policy: str
+    cash: Decimal
+    invested: Decimal
+    today_pnl: Decimal
+    annualized_return: Decimal
+    profit_factor: Decimal
+    sharpe_ratio: Decimal
+    sortino_ratio: Decimal
+    calmar_ratio: Decimal
+    expectancy: Decimal
+    average_winner: Decimal
+    average_loser: Decimal
+    risk_score: Decimal
+    holdings: tuple[HoldingResponse, ...]
+    equity_curve: tuple[EquityPointResponse, ...]
 
 
 class OptionsWatchResponse(BaseModel):
@@ -139,6 +265,17 @@ def _candidate(candidate: NextDayCandidate) -> CandidateResponse:
         suggested_quantity=_round(candidate.suggested_quantity),
         suggested_notional=_round(candidate.suggested_notional),
         reasons=candidate.reasons,
+        ai_score=_round(candidate.ai_score),
+        strategy=candidate.strategy,
+        risk_reward=_round(candidate.risk_reward),
+        expected_return=_round(candidate.expected_return),
+        expected_holding_days=candidate.expected_holding_days,
+        catalysts=candidate.catalysts,
+        news_summary=candidate.news_summary,
+        institutional_flow=candidate.institutional_flow,
+        agent_scores=tuple(_agent_score(agent) for agent in candidate.agent_scores),
+        final_score=_round(candidate.final_score),
+        risk_score=_round(candidate.risk_score),
     )
 
 
@@ -156,6 +293,33 @@ def _backtest(backtest: BacktestSummary) -> BacktestResponse:
         starting_capital=_round(backtest.starting_capital),
         ending_equity=_round(backtest.ending_equity),
         trades=tuple(_trade(trade) for trade in backtest.trades),
+        equity_curve=tuple(_equity_point(point) for point in backtest.equity_curve),
+        benchmark_comparisons=tuple(
+            _benchmark_comparison(item) for item in backtest.benchmark_comparisons
+        ),
+        sharpe_ratio=_round(backtest.sharpe_ratio),
+        sortino_ratio=_round(backtest.sortino_ratio),
+        calmar_ratio=_round(backtest.calmar_ratio),
+        profit_factor=_round(backtest.profit_factor),
+        expectancy=_round(backtest.expectancy),
+        average_win=_round(backtest.average_win),
+        average_loss=_round(backtest.average_loss),
+        largest_win=_round(backtest.largest_win),
+        largest_loss=_round(backtest.largest_loss),
+        consecutive_wins=backtest.consecutive_wins,
+        consecutive_losses=backtest.consecutive_losses,
+        recovery_time_days=backtest.recovery_time_days,
+        exposure=_round(backtest.exposure),
+        volatility=_round(backtest.volatility),
+        alpha=_round(backtest.alpha),
+        beta=_round(backtest.beta),
+        information_ratio=_round(backtest.information_ratio),
+        tracking_error=_round(backtest.tracking_error),
+        treynor_ratio=_round(backtest.treynor_ratio),
+        omega_ratio=_round(backtest.omega_ratio),
+        skew=_round(backtest.skew),
+        kurtosis=_round(backtest.kurtosis),
+        mar_ratio=_round(backtest.mar_ratio),
     )
 
 
@@ -170,11 +334,25 @@ def _trade(trade: DailyTrade) -> TradeResponse:
         pnl=_round(trade.pnl) if trade.pnl is not None else None,
         return_pct=_round(trade.return_pct) if trade.return_pct is not None else None,
         reason=trade.reason,
+        trade_id=trade.trade_id,
+        direction=trade.direction,
+        holding_period_days=trade.holding_period_days,
+        position_size=_round(trade.position_size),
+        entry_signal=trade.entry_signal,
+        exit_signal=trade.exit_signal,
+        strategy_name=trade.strategy_name,
+        regime=trade.regime,
+        ai_confidence=_round(trade.ai_confidence),
+        risk_reward=_round(trade.risk_reward),
+        stop_loss=_round(trade.stop_loss) if trade.stop_loss is not None else None,
+        take_profit=_round(trade.take_profit) if trade.take_profit is not None else None,
+        gross_pnl=_round(trade.gross_pnl) if trade.gross_pnl is not None else None,
+        net_pnl=_round(trade.net_pnl) if trade.net_pnl is not None else None,
+        commission=_round(trade.commission),
+        slippage=_round(trade.slippage),
+        screenshot_placeholder="not_captured",
+        notes=trade.notes,
     )
-
-
-def _round(value: Decimal) -> Decimal:
-    return value.quantize(Decimal("0.0001"))
 
 
 def _portfolio(portfolio: PortfolioSummary) -> PortfolioResponse:
@@ -187,6 +365,20 @@ def _portfolio(portfolio: PortfolioSummary) -> PortfolioResponse:
         win_rate=_round(portfolio.win_rate),
         max_drawdown=_round(portfolio.max_drawdown),
         cash_policy=portfolio.cash_policy,
+        cash=_round(portfolio.cash),
+        invested=_round(portfolio.invested),
+        today_pnl=_round(portfolio.today_pnl),
+        annualized_return=_round(portfolio.annualized_return),
+        profit_factor=_round(portfolio.profit_factor),
+        sharpe_ratio=_round(portfolio.sharpe_ratio),
+        sortino_ratio=_round(portfolio.sortino_ratio),
+        calmar_ratio=_round(portfolio.calmar_ratio),
+        expectancy=_round(portfolio.expectancy),
+        average_winner=_round(portfolio.average_winner),
+        average_loser=_round(portfolio.average_loser),
+        risk_score=_round(portfolio.risk_score),
+        holdings=tuple(_holding(holding) for holding in portfolio.holdings),
+        equity_curve=tuple(_equity_point(point) for point in portfolio.equity_curve),
     )
 
 
@@ -201,3 +393,61 @@ def _options_watch(candidate: OptionsWatchCandidate) -> OptionsWatchResponse:
         suggested_underlying_notional=_round(candidate.suggested_underlying_notional),
         rationale=candidate.rationale,
     )
+
+
+def _equity_point(point: EquityPoint) -> EquityPointResponse:
+    return EquityPointResponse(
+        session=point.session,
+        equity=_round(point.equity),
+        drawdown=_round(point.drawdown),
+        daily_pnl=_round(point.daily_pnl),
+        daily_return=_round(point.daily_return),
+    )
+
+
+def _benchmark_comparison(item: BenchmarkComparison) -> BenchmarkComparisonResponse:
+    return BenchmarkComparisonResponse(
+        benchmark=item.benchmark,
+        benchmark_return=_round(item.benchmark_return),
+        strategy_return=_round(item.strategy_return),
+        outperformance=_round(item.outperformance),
+        benchmark_drawdown=_round(item.benchmark_drawdown),
+        risk_label=item.risk_label,
+    )
+
+
+def _agent_score(agent: AgentScore) -> AgentScoreResponse:
+    return AgentScoreResponse(
+        name=agent.name,
+        score=_round(agent.score),
+        confidence=_round(agent.confidence),
+        reason=agent.reason,
+    )
+
+
+def _holding(holding: HoldingSnapshot) -> HoldingResponse:
+    return HoldingResponse(
+        symbol=holding.symbol,
+        position=holding.position,
+        shares=_round(holding.shares),
+        average_cost=_round(holding.average_cost),
+        current_price=_round(holding.current_price),
+        market_value=_round(holding.market_value),
+        unrealized_pnl=_round(holding.unrealized_pnl),
+        realized_pnl=_round(holding.realized_pnl),
+        today_change=_round(holding.today_change),
+        weight=_round(holding.weight),
+        risk_score=_round(holding.risk_score),
+        ai_score=_round(holding.ai_score),
+        confidence=_round(holding.confidence),
+        sector=holding.sector,
+        industry=holding.industry,
+        stop_loss=_round(holding.stop_loss) if holding.stop_loss is not None else None,
+        take_profit=_round(holding.take_profit) if holding.take_profit is not None else None,
+        holding_days=holding.holding_days,
+        status=holding.status,
+    )
+
+
+def _round(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.0001"))
