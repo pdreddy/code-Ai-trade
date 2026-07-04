@@ -50,8 +50,20 @@ npm run dev
 
 ## Docker Compose
 
+Run Compose commands from the repository root, where `docker-compose.yml` lives. If your shell prompt is inside `frontend/`, move back to the repo root first:
+
+```bash
+cd ..
+```
+
 ```bash
 docker compose up --build
+```
+
+Alternatively, from inside `frontend/`, point Docker Compose at the root Compose file explicitly:
+
+```bash
+docker compose -f ../docker-compose.yml up --build
 ```
 
 Services:
