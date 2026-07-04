@@ -11,7 +11,7 @@ from decimal import ROUND_DOWN, Decimal
 from statistics import mean
 
 DEFAULT_RESEARCH_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA")
-DEFAULT_STARTING_CAPITAL = Decimal("5000")
+DEFAULT_STARTING_CAPITAL = Decimal("10000")
 SHORT_WINDOW = 20
 LONG_WINDOW = 50
 LOOKBACK_DAYS = 365 * 5 + 2
@@ -72,10 +72,36 @@ class NextDayCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class OptionsWatchCandidate:
+    symbol: str
+    signal_date: date
+    underlying_action: str
+    watch_type: str
+    urgency: Decimal
+    underlying_last_close: Decimal
+    suggested_underlying_notional: Decimal
+    rationale: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioSummary:
+    starting_capital: Decimal
+    ending_equity: Decimal
+    total_return: Decimal
+    open_positions: int
+    closed_trades: int
+    win_rate: Decimal
+    max_drawdown: Decimal
+    cash_policy: str
+
+
+@dataclass(frozen=True, slots=True)
 class DailyResearchReport:
     generated_at: datetime
     candidates: tuple[NextDayCandidate, ...]
     backtests: tuple[BacktestSummary, ...]
+    portfolio: PortfolioSummary
+    options_watchlist: tuple[OptionsWatchCandidate, ...]
 
 
 class DailyResearchService:
@@ -103,21 +129,31 @@ class DailyResearchService:
             raise ValueError(msg)
         resolved_end = end or datetime.now(UTC).date()
         start = resolved_end - timedelta(days=LOOKBACK_DAYS)
+        normalized_symbols = tuple(symbol.upper() for symbol in symbols)
+        sleeve_capital = (starting_capital / Decimal(len(normalized_symbols))).quantize(
+            Decimal("0.0001")
+        )
         backtests: list[BacktestSummary] = []
         candidates: list[NextDayCandidate] = []
-        for symbol in symbols:
-            bars = self._fetch_bars(symbol.upper(), start, resolved_end)
+        options_watchlist: list[OptionsWatchCandidate] = []
+        for symbol in normalized_symbols:
+            bars = self._fetch_bars(symbol, start, resolved_end)
             if len(bars) <= LONG_WINDOW + 1:
                 continue
-            backtest = self._backtest(symbol.upper(), bars, starting_capital)
+            backtest = self._backtest(symbol, bars, sleeve_capital)
             backtests.append(backtest)
             candidates.append(
-                self._candidate(symbol.upper(), bars, backtest.open_position, starting_capital)
+                self._candidate(symbol, bars, backtest.open_position, sleeve_capital)
             )
+            options_candidate = self._options_watch_candidate(symbol, bars, candidates[-1])
+            if options_candidate is not None:
+                options_watchlist.append(options_candidate)
         return DailyResearchReport(
             generated_at=datetime.now(UTC),
             candidates=tuple(candidates),
             backtests=tuple(backtests),
+            portfolio=self._portfolio_summary(starting_capital, backtests),
+            options_watchlist=tuple(options_watchlist),
         )
 
     def _backtest(
@@ -135,7 +171,9 @@ class DailyResearchService:
             signal = self._signal(bars, index, quantity > 0)
             fill_bar = bars[index + 1]
             if signal == "BUY" and quantity == 0:
-                quantity = (cash / fill_bar.open).quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+                quantity = (cash / fill_bar.open).quantize(
+                    Decimal("0.0001"), rounding=ROUND_DOWN
+                )
                 cash -= quantity * fill_bar.open
                 entry_price = fill_bar.open
                 entry_date = fill_bar.session
@@ -202,7 +240,70 @@ class DailyResearchService:
             open_position=quantity > 0,
             starting_capital=starting_capital,
             ending_equity=last_equity,
-            trades=tuple(trades[-12:]),
+            trades=tuple(trades),
+        )
+
+
+    def _portfolio_summary(
+        self, starting_capital: Decimal, backtests: list[BacktestSummary]
+    ) -> PortfolioSummary:
+        ending_equity = sum((item.ending_equity for item in backtests), Decimal("0"))
+        closed_trades = [
+            trade for item in backtests for trade in item.trades if trade.pnl is not None
+        ]
+        winners = [trade for trade in closed_trades if trade.pnl is not None and trade.pnl > 0]
+        win_rate = (
+            Decimal(len(winners)) / Decimal(len(closed_trades))
+            if closed_trades
+            else Decimal("0")
+        )
+        max_drawdown = min((item.max_drawdown for item in backtests), default=Decimal("0"))
+        return PortfolioSummary(
+            starting_capital=starting_capital,
+            ending_equity=ending_equity,
+            total_return=(
+                ending_equity / starting_capital - 1
+                if starting_capital > 0
+                else Decimal("0")
+            ),
+            open_positions=sum(1 for item in backtests if item.open_position),
+            closed_trades=len(closed_trades),
+            win_rate=win_rate,
+            max_drawdown=max_drawdown,
+            cash_policy="equal_symbol_sleeves_rebalanced_at_report_start",
+        )
+
+    def _options_watch_candidate(
+        self, symbol: str, bars: list[ResearchBar], candidate: NextDayCandidate
+    ) -> OptionsWatchCandidate | None:
+        index = len(bars) - 1
+        latest = bars[index]
+        recent_volumes = bars[max(0, index - 20) : index] or [latest]
+        avg_volume = Decimal(str(mean(bar.volume for bar in recent_volumes)))
+        volume_ratio = Decimal(latest.volume) / avg_volume if avg_volume > 0 else Decimal("0")
+        urgency = min(Decimal("0.99"), max(candidate.confidence, volume_ratio / Decimal("3")))
+        if candidate.action == "HOLD" and volume_ratio < Decimal("1.5"):
+            return None
+        if candidate.action == "BUY":
+            watch_type = "CALL_WATCH"
+        elif candidate.action == "SELL":
+            watch_type = "PUT_OR_HEDGE_WATCH"
+        else:
+            watch_type = "FLOW_MONITOR"
+        return OptionsWatchCandidate(
+            symbol=symbol,
+            signal_date=latest.session,
+            underlying_action=candidate.action,
+            watch_type=watch_type,
+            urgency=urgency,
+            underlying_last_close=latest.close,
+            suggested_underlying_notional=candidate.suggested_notional,
+            rationale=(
+                "Options-chain execution is not enabled; this is an underlying-driven watch plan.",
+                f"underlying_action={candidate.action}",
+                f"underlying_volume_ratio={volume_ratio.quantize(Decimal('0.0001'))}",
+                "Confirm unusual options flow with a real options provider before paper orders.",
+            ),
         )
 
     def _candidate(

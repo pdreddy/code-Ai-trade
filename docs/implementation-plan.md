@@ -354,7 +354,7 @@ Testing:
 
 Objectives:
 
-- Build Dashboard, Signals, Stock Details, Backtests, Paper Trades, Portfolio, Analytics, and Watchlists pages with honest empty states until APIs are available.
+- Build Dashboard, Signals, Stock Details, Backtests, Paper Trades, Portfolio, Analytics, and Watchlists pages backed by available real research APIs, with honest unavailable states when providers fail.
 - Keep business logic outside UI components.
 - Provide a professional dark terminal UX inspired by Bloomberg, TradingView, ThinkOrSwim, and Interactive Brokers.
 
@@ -380,7 +380,8 @@ Acceptance criteria:
 
 - No dead controls are shipped; controls either execute real flows or are absent.
 - Pages are responsive and keyboard-accessible.
-- Stock details and backtest screens render honest empty states until real backend data or clearly labeled historical demo outputs are available.
+- Dashboard, stock details, backtests, paper trades, portfolio, analytics, and signals render the $10,000 provider-backed research report when the backend is reachable.
+- Unusual-options UI is explicitly labeled as an underlying-driven watch plan until a real options-chain provider and execution adapter exist.
 
 Testing:
 
@@ -392,7 +393,7 @@ Testing:
 
 Objectives:
 
-- Add equity curves, drawdowns, benchmark analysis, monthly returns, trade analytics, and portfolio reporting.
+- Add equity curves, drawdowns, benchmark analysis, monthly returns, trade analytics, portfolio reporting, and daily paper research rollups.
 - Support institutional research review workflows.
 - Provide exportable analytics without compromising source-of-truth storage.
 
@@ -407,7 +408,8 @@ Architecture:
 
 - Analytics are derived from real backtest, trade, and portfolio records supplied by persistence adapters or API callers.
 - Calculations are deterministic and versionable.
-- Chart DTOs are prepared by backend services rather than computed in UI components.
+- Chart and report DTOs are prepared by backend services rather than computed in UI components.
+- The daily research report uses a $10,000 paper-capital default with equal symbol sleeves and signal-on-close/fill-next-open semantics.
 
 Dependencies:
 

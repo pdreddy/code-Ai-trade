@@ -34,5 +34,5 @@ def test_daily_research_report_contains_next_day_candidates_and_backtests() -> N
     assert report.backtests[0].symbol == "SPY"
     assert report.backtests[0].bars == BAR_COUNT
     assert report.backtests[0].trade_count >= 1
-    assert report.backtests[0].starting_capital == Decimal("5000")
-    assert report.backtests[0].ending_equity > Decimal("5000")
+    assert report.backtests[0].starting_capital == Decimal("10000")
+    assert report.backtests[0].ending_equity > Decimal("10000")

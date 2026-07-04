@@ -1,4 +1,5 @@
-import { EmptyState, PagePanel } from "@/components/page-panel";
+import { DailyResearchReport } from "@/components/daily-research-report";
+import { PagePanel } from "@/components/page-panel";
 import { StatusGrid } from "@/components/status-grid";
 import { TerminalShell } from "@/components/terminal-shell";
 import { backendCapabilities, supportedUniverse } from "@/lib/platform-data";
@@ -7,11 +8,11 @@ export default function HomePage() {
   return (
     <TerminalShell>
       <PagePanel
-        description="A production-oriented foundation is in place across market data, agents, decisions, backtesting, paper trading, and risk. UI workspaces intentionally show empty states until API endpoints and persistence adapters are added."
+        description="Live research dashboard backed by real OHLCV provider data, $10,000 paper capital, signal-on-close decisions, and fill-next-open simulated executions."
         eyebrow="Dashboard"
         title="Research Platform Status"
       >
-        <StatusGrid capabilities={backendCapabilities} />
+        <><StatusGrid capabilities={backendCapabilities} /><div className="mt-6"><DailyResearchReport view="dashboard" /></div></>
       </PagePanel>
       <PagePanel
         description="The platform is designed for broad equity and ETF coverage without hard-coding provider behavior into the UI."
@@ -26,7 +27,6 @@ export default function HomePage() {
           ))}
         </div>
       </PagePanel>
-      <EmptyState message="Next implementation step: API endpoints and persistence adapters for backtests, paper trading, risk decisions, and analytics." />
     </TerminalShell>
   );
 }

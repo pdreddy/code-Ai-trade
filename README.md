@@ -106,3 +106,13 @@ docker compose up -d --build frontend
 ```
 
 The script writes `frontend/lib/generated-market-snapshot.ts`, which is intentionally empty until regenerated from a real provider response.
+
+## $10,000 Daily Paper Research Report
+
+The active UI research workspaces call the backend daily report endpoint with `$10,000` of paper capital and real five-year Yahoo Finance OHLCV bars. The report simulates entries and exits with the platform rule `signal on close, fill on next open`; it does not send live broker orders.
+
+```bash
+curl "http://localhost:8000/api/v1/research/daily-report?capital=10000"
+```
+
+The response includes next-session paper candidates, all generated daywise strategy trades for the covered period, portfolio-level equity/return/win-rate metrics, and an underlying-driven unusual-options watch plan. The options watch section is not an options-chain execution engine; it flags where a future real options provider should verify unusual flow before any paper options workflow is enabled.

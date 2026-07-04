@@ -12,10 +12,12 @@ from backend.app.application.daily_research import (
     DailyResearchService,
     DailyTrade,
     NextDayCandidate,
+    OptionsWatchCandidate,
+    PortfolioSummary,
 )
 
 router = APIRouter(prefix="/research", tags=["research"])
-CAPITAL_QUERY = Query(default=Decimal("5000"), gt=0)
+CAPITAL_QUERY = Query(default=Decimal("10000"), gt=0)
 
 
 class TradeResponse(BaseModel):
@@ -65,12 +67,40 @@ class CandidateResponse(BaseModel):
     reasons: tuple[str, ...]
 
 
+class PortfolioResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    starting_capital: Decimal
+    ending_equity: Decimal
+    total_return: Decimal
+    open_positions: int
+    closed_trades: int
+    win_rate: Decimal
+    max_drawdown: Decimal
+    cash_policy: str
+
+
+class OptionsWatchResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    signal_date: date
+    underlying_action: str
+    watch_type: str
+    urgency: Decimal
+    underlying_last_close: Decimal
+    suggested_underlying_notional: Decimal
+    rationale: tuple[str, ...]
+
+
 class DailyResearchReportResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     generated_at: datetime
     candidates: tuple[CandidateResponse, ...]
     backtests: tuple[BacktestResponse, ...]
+    portfolio: PortfolioResponse
+    options_watchlist: tuple[OptionsWatchResponse, ...]
 
 
 @router.get("/daily-report", response_model=DailyResearchReportResponse)
@@ -91,6 +121,8 @@ def daily_report(
         generated_at=report.generated_at,
         candidates=tuple(_candidate(candidate) for candidate in report.candidates),
         backtests=tuple(_backtest(backtest) for backtest in report.backtests),
+        portfolio=_portfolio(report.portfolio),
+        options_watchlist=tuple(_options_watch(item) for item in report.options_watchlist),
     )
 
 
@@ -143,3 +175,29 @@ def _trade(trade: DailyTrade) -> TradeResponse:
 
 def _round(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.0001"))
+
+
+def _portfolio(portfolio: PortfolioSummary) -> PortfolioResponse:
+    return PortfolioResponse(
+        starting_capital=_round(portfolio.starting_capital),
+        ending_equity=_round(portfolio.ending_equity),
+        total_return=_round(portfolio.total_return),
+        open_positions=portfolio.open_positions,
+        closed_trades=portfolio.closed_trades,
+        win_rate=_round(portfolio.win_rate),
+        max_drawdown=_round(portfolio.max_drawdown),
+        cash_policy=portfolio.cash_policy,
+    )
+
+
+def _options_watch(candidate: OptionsWatchCandidate) -> OptionsWatchResponse:
+    return OptionsWatchResponse(
+        symbol=candidate.symbol,
+        signal_date=candidate.signal_date,
+        underlying_action=candidate.underlying_action,
+        watch_type=candidate.watch_type,
+        urgency=_round(candidate.urgency),
+        underlying_last_close=_round(candidate.underlying_last_close),
+        suggested_underlying_notional=_round(candidate.suggested_underlying_notional),
+        rationale=candidate.rationale,
+    )
