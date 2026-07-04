@@ -17,6 +17,11 @@ export const terminalPages: TerminalPage[] = [
   { href: "/stocks", label: "Stock Details", description: "Instrument research workspace" },
   { href: "/backtests", label: "Backtests", description: "Event-driven simulations" },
   { href: "/options", label: "Options", description: "0DTE & weekly options desk" },
+  {
+    href: "/options-portfolio",
+    label: "Options Portfolio",
+    description: "$10k 0DTE/weekly track record"
+  },
   { href: "/paper-trades", label: "Paper Trades", description: "Paper broker activity" },
   { href: "/portfolio", label: "Portfolio", description: "Cash, exposure, risk" },
   { href: "/analytics", label: "Analytics", description: "Performance attribution" }

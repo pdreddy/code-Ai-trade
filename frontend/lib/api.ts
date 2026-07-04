@@ -305,3 +305,221 @@ export function fetchOptionsResearch(symbol: string, maxDte = 8): Promise<Option
     `/options/${encodeURIComponent(symbol)}?max_dte=${maxDte}`
   );
 }
+
+export type OptionsStyle = "zero_dte" | "weekly";
+
+export type OptionsTrade = {
+  option_side: "call" | "put";
+  strike: string;
+  expiration: string;
+  entry_at: string;
+  entry_underlying: string;
+  entry_premium: string;
+  contracts: number;
+  exit_at: string;
+  exit_underlying: string;
+  exit_premium: string;
+  realized_pnl: string;
+  entry_reason: string;
+  exit_reason: string;
+};
+
+export type OptionsBacktestMetrics = {
+  win_rate: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  total_return: string;
+  max_drawdown: string;
+  profit_factor: string;
+};
+
+export type OptionsBacktest = {
+  symbol: string;
+  style: OptionsStyle;
+  modeled: boolean;
+  pricing_note: string;
+  initial_capital: string;
+  final_equity: string;
+  metrics: OptionsBacktestMetrics;
+  equity_curve: { on: string; equity: string }[];
+  trades: OptionsTrade[];
+  next_signal: MasterDecision | null;
+};
+
+export function fetchOptionsBacktest(
+  symbol: string,
+  style: OptionsStyle = "weekly",
+  days = 1825,
+  capital = 10000
+): Promise<OptionsBacktest> {
+  return getJson<OptionsBacktest>(
+    `/options/${encodeURIComponent(symbol)}/backtest?style=${style}&days=${days}&capital=${capital}`,
+    PORTFOLIO_TIMEOUT_MS
+  );
+}
+
+export type OptionsPortfolioSleeve = {
+  symbol: string;
+  allocated: string;
+  final_equity: string;
+  return_pct: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: string;
+  next_signal: MasterDecision | null;
+};
+
+export type OptionsPortfolioTrade = {
+  symbol: string;
+  option_side: "call" | "put";
+  strike: string;
+  expiration: string;
+  entry_at: string;
+  entry_underlying: string;
+  entry_premium: string;
+  contracts: number;
+  exit_at: string;
+  exit_underlying: string;
+  exit_premium: string;
+  realized_pnl: string;
+  entry_reason: string;
+  exit_reason: string;
+};
+
+export type OptionsPortfolioExecution = {
+  generated_at: string;
+  style: OptionsStyle;
+  modeled: boolean;
+  pricing_note: string;
+  initial_capital: string;
+  total_equity: string;
+  total_pnl: string;
+  total_return: string;
+  success_rate: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  max_drawdown: string;
+  symbol_count: number;
+  sleeves: OptionsPortfolioSleeve[];
+  trades: OptionsPortfolioTrade[];
+  equity_curve: { on: string; equity: string }[];
+  errors: { symbol: string; detail: string }[];
+};
+
+const optionsPortfolioCache = new Map<
+  string,
+  { at: number; value: Promise<OptionsPortfolioExecution> }
+>();
+
+export function fetchOptionsPortfolioExecution(
+  style: OptionsStyle = "weekly",
+  capital = 10000,
+  days = 1825,
+  { force = false }: { force?: boolean } = {}
+): Promise<OptionsPortfolioExecution> {
+  const key = `${style}:${capital}:${days}`;
+  const cached = optionsPortfolioCache.get(key);
+  if (!force && cached && Date.now() - cached.at < PORTFOLIO_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  const value = getJson<OptionsPortfolioExecution>(
+    `/options-portfolio/execute?style=${style}&capital=${capital}&days=${days}`,
+    PORTFOLIO_TIMEOUT_MS
+  ).catch((error: unknown) => {
+    optionsPortfolioCache.delete(key);
+    throw error;
+  });
+  optionsPortfolioCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
+export type LedgerOpenPosition = {
+  symbol: string;
+  style: OptionsStyle;
+  option_side: "call" | "put";
+  contract_symbol: string;
+  strike: string;
+  expiration: string;
+  opened_at: string;
+  entry_underlying: string;
+  entry_premium: string;
+  contracts: number;
+  entry_reason: string;
+  mark_premium: string | null;
+  unrealized_pnl: string | null;
+};
+
+export type LedgerClosedPosition = {
+  symbol: string;
+  style: OptionsStyle;
+  option_side: "call" | "put";
+  contract_symbol: string;
+  strike: string;
+  expiration: string;
+  opened_at: string;
+  entry_underlying: string;
+  entry_premium: string;
+  contracts: number;
+  entry_reason: string;
+  closed_at: string;
+  exit_underlying: string;
+  exit_premium: string;
+  realized_pnl: string;
+  settlement: string;
+};
+
+export type LedgerSnapshot = {
+  generated_at: string;
+  real_quotes: boolean;
+  note: string;
+  cash_by_symbol: Record<string, string>;
+  realized_pnl_total: string;
+  open_positions: LedgerOpenPosition[];
+  closed_positions: LedgerClosedPosition[];
+};
+
+export function fetchOptionsPaperLedger(): Promise<LedgerSnapshot> {
+  return getJson<LedgerSnapshot>("/options-portfolio/paper-ledger", PORTFOLIO_TIMEOUT_MS);
+}
+
+export async function tickOptionsPaperLedger(
+  style: OptionsStyle = "weekly",
+  maxDte = 8
+): Promise<LedgerSnapshot> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PORTFOLIO_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `${apiBaseUrl}/options-portfolio/paper-ledger/tick?style=${style}&max_dte=${maxDte}`,
+      { method: "POST", cache: "no-store", signal: controller.signal }
+    );
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const body = (await response.json()) as { detail?: string };
+        if (body.detail) {
+          detail = body.detail;
+        }
+      } catch {
+        // Non-JSON error body; fall back to the status text.
+      }
+      throw new ApiError(`${response.status}: ${detail}`);
+    }
+    return (await response.json()) as LedgerSnapshot;
+  } catch (caught) {
+    if (caught instanceof ApiError) {
+      throw caught;
+    }
+    if (caught instanceof DOMException && caught.name === "AbortError") {
+      throw new ApiError(
+        `Request to ${apiBaseUrl} timed out after ${PORTFOLIO_TIMEOUT_MS / 1000}s.`
+      );
+    }
+    throw new ApiError(`Unable to reach the backend at ${apiBaseUrl}.`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
