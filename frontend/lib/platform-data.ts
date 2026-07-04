@@ -16,6 +16,7 @@ export const terminalPages: TerminalPage[] = [
   { href: "/signals", label: "Signals", description: "Agent and master decisions" },
   { href: "/stocks", label: "Stock Details", description: "Instrument research workspace" },
   { href: "/backtests", label: "Backtests", description: "Event-driven simulations" },
+  { href: "/options", label: "Options", description: "0DTE & weekly options desk" },
   { href: "/paper-trades", label: "Paper Trades", description: "Paper broker activity" },
   { href: "/portfolio", label: "Portfolio", description: "Cash, exposure, risk" },
   { href: "/analytics", label: "Analytics", description: "Performance attribution" }

@@ -261,3 +261,47 @@ export function fetchPortfolioExecution(
   portfolioCache.set(key, { at: Date.now(), value });
   return value;
 }
+
+export type OptionContract = {
+  contract_symbol: string;
+  option_type: "call" | "put";
+  strike: string;
+  expiration: string;
+  days_to_expiry: number;
+  last_price: string | null;
+  bid: string | null;
+  ask: string | null;
+  volume: number;
+  open_interest: number;
+  implied_volatility: string | null;
+  in_the_money: boolean;
+  volume_oi_ratio: string;
+};
+
+export type UnusualContract = {
+  contract: OptionContract;
+  volume_oi_ratio: string;
+};
+
+export type PlannedOptionTrade = {
+  contract: OptionContract;
+  rationale: string;
+};
+
+export type OptionsResearch = {
+  symbol: string;
+  underlying_price: string;
+  as_of: string;
+  max_dte: number;
+  near_term_count: number;
+  zero_dte_count: number;
+  signal: MasterDecision;
+  unusual_activity: UnusualContract[];
+  planned_trades: PlannedOptionTrade[];
+};
+
+export function fetchOptionsResearch(symbol: string, maxDte = 8): Promise<OptionsResearch> {
+  return getJson<OptionsResearch>(
+    `/options/${encodeURIComponent(symbol)}?max_dte=${maxDte}`
+  );
+}
