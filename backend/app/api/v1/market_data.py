@@ -15,14 +15,16 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict
 
 from backend.app.application.agents.registry import create_default_agents
+from backend.app.application.backtesting import BacktestResult, EventDrivenBacktester
 from backend.app.application.decision_engine import (
     MasterDecisionEngine,
     MasterDecisionRequest,
 )
 from backend.app.application.market_data import MarketDataService
+from backend.app.application.strategy_backtest import StrategyBacktestService
 from backend.app.core.config import Settings, get_settings
 from backend.app.domain.agents import AgentRequest, AgentVote
-from backend.app.domain.entities import MasterDecision
+from backend.app.domain.entities import BacktestRun, MasterDecision
 from backend.app.domain.errors import DomainValidationError
 from backend.app.domain.providers import HistoricalMarketData, HistoricalMarketDataRequest
 from backend.app.domain.value_objects import Price
@@ -224,4 +226,158 @@ def _decision_response(decision: MasterDecision) -> MasterDecisionResponse:
         take_profit=decision.take_profit.value if decision.take_profit else None,
         expected_r_multiple=decision.expected_r_multiple,
         explanation=decision.explanation,
+    )
+
+
+class TradeRecordResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    entry_at: datetime
+    entry_price: Decimal
+    exit_at: datetime | None
+    exit_price: Decimal | None
+    quantity: Decimal
+    realized_pnl: Decimal | None
+    entry_reason: str
+    exit_reason: str | None
+
+
+class EquityPointResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    timestamp: datetime
+    equity: Decimal
+
+
+class BacktestMetricsResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    success_rate: Decimal
+    total_return: Decimal
+    cagr: Decimal
+    sharpe: Decimal
+    sortino: Decimal
+    calmar: Decimal
+    profit_factor: Decimal
+    max_drawdown: Decimal
+    exposure: Decimal
+    trade_count: int
+    winning_trades: int
+    losing_trades: int
+
+
+class BacktestResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    start: datetime
+    end: datetime
+    bar_count: int
+    initial_capital: Decimal
+    final_equity: Decimal
+    metrics: BacktestMetricsResponse
+    equity_curve: tuple[EquityPointResponse, ...]
+    trades: tuple[TradeRecordResponse, ...]
+    next_signal: MasterDecisionResponse | None
+
+
+BacktestDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
+
+
+@router.get("/{symbol}/backtest", response_model=BacktestResponse)
+def market_data_backtest(
+    symbol: SymbolPath,
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    days: BacktestDays = 1825,
+    capital: Annotated[Decimal, Query(gt=0)] = Decimal("10000"),
+) -> BacktestResponse:
+    """Execute the AI strategy over real history and report the proven track record.
+
+    Every bar produces a master decision; the event-driven backtester fills those
+    decisions on the next open. The response is the executed trade list, the equity
+    curve, performance metrics (including the win/success rate), and the latest
+    decision, which is the forward-looking signal.
+    """
+
+    request = _history_request(symbol, days)
+    domain_bars = _fetch_history(service, request).bars
+
+    try:
+        run = BacktestRun(
+            id=uuid5(_INSTRUMENT_NAMESPACE, f"{request.symbol}:backtest"),
+            strategy_name="ai_master_decision",
+            instrument_id=request.instrument_id,
+            start_date=domain_bars[0].timestamp.date(),
+            end_date=domain_bars[-1].timestamp.date(),
+            initial_capital=capital,
+            commission=Decimal("0"),
+            slippage_bps=Decimal("1"),
+            benchmark_symbol=request.symbol,
+        )
+        strategy = StrategyBacktestService(
+            agents=create_default_agents(),
+            engine=MasterDecisionEngine(),
+            backtester=EventDrivenBacktester(),
+        )
+        outcome = strategy.run(run, domain_bars)
+    except DomainValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _backtest_response(request.symbol, outcome.result, outcome.latest_decision)
+
+
+def _backtest_response(
+    symbol: str, result: BacktestResult, latest_decision: MasterDecision | None
+) -> BacktestResponse:
+    realized = [
+        trade.trade.realized_pnl
+        for trade in result.trades
+        if trade.trade.realized_pnl is not None
+    ]
+    winning = sum(1 for pnl in realized if pnl > Decimal("0"))
+    losing = sum(1 for pnl in realized if pnl < Decimal("0"))
+    start_equity = result.equity_curve[0].equity
+    end_equity = result.equity_curve[-1].equity
+    total_return = (
+        end_equity / start_equity - Decimal("1") if start_equity != Decimal("0") else Decimal("0")
+    )
+    return BacktestResponse(
+        symbol=symbol,
+        start=result.equity_curve[0].timestamp,
+        end=result.equity_curve[-1].timestamp,
+        bar_count=len(result.equity_curve),
+        initial_capital=result.run.initial_capital,
+        final_equity=end_equity,
+        metrics=BacktestMetricsResponse(
+            success_rate=result.metrics.win_rate,
+            total_return=total_return,
+            cagr=result.metrics.cagr,
+            sharpe=result.metrics.sharpe,
+            sortino=result.metrics.sortino,
+            calmar=result.metrics.calmar,
+            profit_factor=result.metrics.profit_factor,
+            max_drawdown=result.metrics.max_drawdown,
+            exposure=result.metrics.exposure,
+            trade_count=result.metrics.trade_count,
+            winning_trades=winning,
+            losing_trades=losing,
+        ),
+        equity_curve=tuple(
+            EquityPointResponse(timestamp=point.timestamp, equity=point.equity)
+            for point in result.equity_curve
+        ),
+        trades=tuple(
+            TradeRecordResponse(
+                entry_at=trade.trade.entry_at,
+                entry_price=trade.trade.entry_price.value,
+                exit_at=trade.trade.exit_at,
+                exit_price=trade.trade.exit_price.value if trade.trade.exit_price else None,
+                quantity=trade.trade.quantity.value,
+                realized_pnl=trade.trade.realized_pnl,
+                entry_reason=trade.entry_reason,
+                exit_reason=trade.exit_reason,
+            )
+            for trade in result.trades
+        ),
+        next_signal=_decision_response(latest_decision) if latest_decision else None,
     )

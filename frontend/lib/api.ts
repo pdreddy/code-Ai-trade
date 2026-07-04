@@ -55,6 +55,50 @@ export type Signals = {
   master_decision: MasterDecision;
 };
 
+export type TradeRecord = {
+  entry_at: string;
+  entry_price: string;
+  exit_at: string | null;
+  exit_price: string | null;
+  quantity: string;
+  realized_pnl: string | null;
+  entry_reason: string;
+  exit_reason: string | null;
+};
+
+export type EquityPoint = {
+  timestamp: string;
+  equity: string;
+};
+
+export type BacktestMetrics = {
+  success_rate: string;
+  total_return: string;
+  cagr: string;
+  sharpe: string;
+  sortino: string;
+  calmar: string;
+  profit_factor: string;
+  max_drawdown: string;
+  exposure: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+};
+
+export type Backtest = {
+  symbol: string;
+  start: string;
+  end: string;
+  bar_count: number;
+  initial_capital: string;
+  final_equity: string;
+  metrics: BacktestMetrics;
+  equity_curve: EquityPoint[];
+  trades: TradeRecord[];
+  next_signal: MasterDecision | null;
+};
+
 export class ApiError extends Error {}
 
 // The backend proxies to a live market-data provider, so a request can legitimately
@@ -107,5 +151,11 @@ export function fetchMarketData(symbol: string, days = 180): Promise<MarketData>
 export function fetchSignals(symbol: string, days = 420): Promise<Signals> {
   return getJson<Signals>(
     `/market-data/${encodeURIComponent(symbol)}/signals?days=${days}`
+  );
+}
+
+export function fetchBacktest(symbol: string, days = 1825): Promise<Backtest> {
+  return getJson<Backtest>(
+    `/market-data/${encodeURIComponent(symbol)}/backtest?days=${days}`
   );
 }
