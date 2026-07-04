@@ -60,8 +60,8 @@ export const backendCapabilities: Capability[] = [
     detail: "Live endpoints serve real provider bars and run the agents plus master decision on demand; the Stock Details and Signals workspaces render them."
   },
   {
-    label: "Backtest, paper-trade & portfolio persistence",
-    status: "planned",
-    detail: "Those workspaces stay honest empty states until result persistence adapters are added; no fabricated data is shown."
+    label: "Portfolio execution & analytics",
+    status: "ready",
+    detail: "The strategy is executed across the universe from one $10,000 base; the Backtests, Portfolio, Paper Trades, and Analytics workspaces render the real executed trades, success rate, holdings, and upcoming planned trades."
   }
 ];

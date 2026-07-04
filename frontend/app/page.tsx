@@ -31,7 +31,7 @@ export default function HomePage() {
           ))}
         </div>
       </PagePanel>
-      <EmptyState message="Next implementation step: persistence adapters for backtests, paper trading, risk decisions, and analytics history." />
+      <EmptyState message="Open Backtests for a single-symbol proven track record, or Portfolio / Paper Trades / Analytics for the $10,000 universe execution with live holdings, trade blotter, and upcoming planned trades." />
     </TerminalShell>
   );
 }

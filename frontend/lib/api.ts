@@ -106,9 +106,9 @@ export class ApiError extends Error {}
 // an indefinitely blank screen.
 const REQUEST_TIMEOUT_MS = 45_000;
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`${apiBaseUrl}${path}`, {
@@ -118,7 +118,7 @@ async function getJson<T>(path: string): Promise<T> {
   } catch (caught) {
     if (caught instanceof DOMException && caught.name === "AbortError") {
       throw new ApiError(
-        `Request to ${apiBaseUrl} timed out after ${REQUEST_TIMEOUT_MS / 1000}s. The market-data provider may be slow or unreachable.`
+        `Request to ${apiBaseUrl} timed out after ${timeoutMs / 1000}s. The market-data provider may be slow or unreachable.`
       );
     }
     throw new ApiError(
@@ -158,4 +158,106 @@ export function fetchBacktest(symbol: string, days = 1825): Promise<Backtest> {
   return getJson<Backtest>(
     `/market-data/${encodeURIComponent(symbol)}/backtest?days=${days}`
   );
+}
+
+export type PortfolioSleeve = {
+  symbol: string;
+  allocated: string;
+  current_value: string;
+  realized_pnl: string;
+  return_pct: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: string;
+  holding: boolean;
+  last_close: string;
+  next_signal: MasterDecision;
+};
+
+export type PortfolioTrade = {
+  symbol: string;
+  entry_at: string;
+  entry_price: string;
+  exit_at: string | null;
+  exit_price: string | null;
+  quantity: string;
+  realized_pnl: string | null;
+  entry_reason: string;
+  exit_reason: string | null;
+};
+
+export type PlannedTrade = {
+  symbol: string;
+  last_close: string;
+  action: SignalAction;
+  confidence: string;
+  risk_score: string;
+  stop_loss: string | null;
+  take_profit: string | null;
+  expected_r_multiple: string;
+  explanation: string;
+};
+
+export type PortfolioEquityPoint = {
+  on: string;
+  equity: string;
+};
+
+export type SleeveError = {
+  symbol: string;
+  detail: string;
+};
+
+export type PortfolioExecution = {
+  generated_at: string;
+  initial_capital: string;
+  total_equity: string;
+  cash: string;
+  invested: string;
+  total_pnl: string;
+  total_return: string;
+  success_rate: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  max_drawdown: string;
+  symbol_count: number;
+  sleeves: PortfolioSleeve[];
+  planned_trades: PlannedTrade[];
+  trades: PortfolioTrade[];
+  equity_curve: PortfolioEquityPoint[];
+  errors: SleeveError[];
+};
+
+// Running the strategy across the whole universe fans out several multi-year
+// provider fetches, so allow it more headroom than a single-symbol request.
+const PORTFOLIO_TIMEOUT_MS = 120_000;
+
+// The Portfolio, Paper Trades, and Analytics tabs are three views of one universe
+// execution. Caching the in-flight/last result for a short TTL means moving between
+// those tabs reuses a single run instead of re-executing every symbol each time.
+const PORTFOLIO_CACHE_TTL_MS = 10 * 60 * 1000;
+const portfolioCache = new Map<string, { at: number; value: Promise<PortfolioExecution> }>();
+
+export function fetchPortfolioExecution(
+  capital = 10000,
+  days = 1825,
+  { force = false }: { force?: boolean } = {}
+): Promise<PortfolioExecution> {
+  const key = `${capital}:${days}`;
+  const cached = portfolioCache.get(key);
+  if (!force && cached && Date.now() - cached.at < PORTFOLIO_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  const value = getJson<PortfolioExecution>(
+    `/portfolio/execute?capital=${capital}&days=${days}`,
+    PORTFOLIO_TIMEOUT_MS
+  ).catch((error: unknown) => {
+    // Don't cache failures — a transient upstream error shouldn't stick.
+    portfolioCache.delete(key);
+    throw error;
+  });
+  portfolioCache.set(key, { at: Date.now(), value });
+  return value;
 }
