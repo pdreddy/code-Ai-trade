@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { terminalPages } from "@/lib/platform-data";
+import { TerminalNav } from "@/components/terminal-nav";
 
 export function TerminalShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -19,17 +18,7 @@ export function TerminalShell({ children }: Readonly<{ children: React.ReactNode
               <span className="text-terminal-accent">MODE</span> · Research / Paper Foundation
             </div>
           </div>
-          <nav className="mt-5 grid gap-2 md:grid-cols-4 lg:grid-cols-8">
-            {terminalPages.map((page) => (
-              <Link
-                className="rounded-lg border border-terminal-border bg-black/20 px-3 py-2 text-sm transition hover:border-terminal-accent hover:text-terminal-accent"
-                href={page.href}
-                key={page.href}
-              >
-                {page.label}
-              </Link>
-            ))}
-          </nav>
+          <TerminalNav />
         </header>
         {children}
       </div>
