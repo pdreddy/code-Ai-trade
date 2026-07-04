@@ -1,5 +1,7 @@
+import json
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -7,7 +9,9 @@ import pytest
 from backend.app.domain.enums import CorporateActionType
 from backend.app.domain.errors import DomainValidationError
 from backend.app.domain.providers import HistoricalMarketDataRequest
+from backend.app.infrastructure.providers import yahoo as yahoo_module
 from backend.app.infrastructure.providers.yahoo import (
+    YahooFinanceProvider,
     YahooFinanceProviderError,
     _extract_result,
     _parse_bars,
@@ -100,6 +104,38 @@ def test_yahoo_chart_parser_normalizes_dividends_and_splits() -> None:
     assert actions[0].value == Decimal("1.23")
     assert actions[1].value == Decimal("2")
     assert {action.source for action in actions} == {"yahoo.chart.v8"}
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_yahoo_provider_sends_browser_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(request: Any, timeout: int) -> _FakeResponse:
+        captured["request"] = request
+        payload = {"chart": {"error": None, "result": [_chart_result()]}}
+        return _FakeResponse(json.dumps(payload).encode("utf-8"))
+
+    monkeypatch.setattr(yahoo_module, "urlopen", fake_urlopen)
+
+    data = YahooFinanceProvider().fetch_daily_history(_request())
+
+    user_agent = captured["request"].get_header("User-agent")
+    assert user_agent is not None
+    assert "Mozilla" in user_agent
+    assert len(data.bars) == EXPECTED_COMPLETE_BAR_COUNT
 
 
 def test_yahoo_result_extraction_fails_on_provider_errors() -> None:

@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from backend.app.domain.entities import Bar, CorporateAction
 from backend.app.domain.enums import CorporateActionType
@@ -29,6 +29,17 @@ YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 DEFAULT_TIMEOUT_SECONDS = 20
 ADJUSTMENT_POLICY = "raw_ohlcv_with_adjusted_close"
 YAHOO_SOURCE = "yahoo.chart.v8"
+
+# Yahoo's chart endpoint returns HTTP 403 to the default Python-urllib User-Agent,
+# so requests must present a browser-like User-Agent to be served.
+REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 
 class YahooFinanceProviderError(RuntimeError):
@@ -78,8 +89,9 @@ class YahooFinanceProvider:
             }
         )
         url = f"{YAHOO_CHART_URL.format(symbol=request.symbol.upper())}?{query}"
+        http_request = Request(url, headers=REQUEST_HEADERS)  # noqa: S310
         try:
-            with urlopen(url, timeout=self._timeout_seconds) as response:  # noqa: S310
+            with urlopen(http_request, timeout=self._timeout_seconds) as response:  # noqa: S310
                 payload = json.loads(response.read().decode("utf-8"))
                 return cast(Mapping[str, Any], payload)
         except HTTPError as exc:
