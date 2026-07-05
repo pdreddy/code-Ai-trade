@@ -14,7 +14,11 @@ import {
 } from "@/components/research";
 import { ApiError, fetchOptionsResearch, type OptionContract, type OptionsResearch } from "@/lib/api";
 
-const DEFAULT_SYMBOL = "AAPL";
+// True same-day (0DTE) expiries are only reliably listed on broad index ETFs;
+// most single stocks only list Friday weeklies. Default to SPY so 0DTE (the
+// default horizon below) actually has real contracts to show.
+const DEFAULT_SYMBOL = "SPY";
+const ZERO_DTE_SYMBOLS = new Set(["SPY", "QQQ", "IWM"]);
 
 // 0DTE isolates same-day expiries; the weekly horizon (8 calendar days) captures the
 // front weekly expiry as well.
@@ -28,7 +32,7 @@ export function OptionsWorkspace() {
   const initialSymbol = (searchParams.get("symbol") ?? DEFAULT_SYMBOL).toUpperCase();
 
   const [symbol, setSymbol] = useState(initialSymbol);
-  const [maxDte, setMaxDte] = useState<number>(8);
+  const [maxDte, setMaxDte] = useState<number>(0);
   const [data, setData] = useState<OptionsResearch | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +106,13 @@ export function OptionsWorkspace() {
                 <p className="mt-1 text-xs text-terminal-muted">
                   {data.near_term_count} near-term contracts · {data.zero_dte_count} expiring today
                 </p>
+                {maxDte === 0 && data.zero_dte_count === 0 && !ZERO_DTE_SYMBOLS.has(symbol) ? (
+                  <p className="mt-2 max-w-sm text-xs text-terminal-warning">
+                    {symbol} has no same-day-expiration contracts listed today — most single
+                    stocks only list Friday weeklies. True 0DTE is most reliable on SPY, QQQ, or
+                    IWM.
+                  </p>
+                ) : null}
               </div>
               <div className="text-right">
                 <p className="text-xs uppercase tracking-[0.28em] text-terminal-muted">AI signal</p>

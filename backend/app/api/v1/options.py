@@ -200,7 +200,7 @@ PRICING_NOTE = (
 def options_backtest(
     symbol: SymbolPath,
     market_data: Annotated[MarketDataService, Depends(get_market_data_service)],
-    style: OptionsStyle = OptionsStyle.WEEKLY,
+    style: OptionsStyle = OptionsStyle.ZERO_DTE,
     days: BacktestDays = 1825,
     capital: BacktestCapital = Decimal("10000"),
 ) -> OptionsBacktestResponse:

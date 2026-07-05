@@ -69,7 +69,7 @@ function StyleSelector({
 }
 
 export function OptionsPortfolioWorkspace() {
-  const [style, setStyle] = useState<OptionsStyle>("weekly");
+  const [style, setStyle] = useState<OptionsStyle>("zero_dte");
   const [data, setData] = useState<OptionsPortfolioExecution | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

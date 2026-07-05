@@ -156,7 +156,7 @@ TRADE_LIMIT = 500
 def execute_options_portfolio(
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
     symbols: Annotated[list[str] | None, Query()] = None,
-    style: OptionsStyle = OptionsStyle.WEEKLY,
+    style: OptionsStyle = OptionsStyle.ZERO_DTE,
     capital: Capital = Decimal("10000"),
     days: ExecuteDays = 1825,
 ) -> OptionsPortfolioExecutionResponse:
