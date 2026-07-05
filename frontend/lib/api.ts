@@ -617,6 +617,7 @@ export type ScannedUnusualContract = {
   symbol: string;
   contract: OptionContract;
   volume_oi_ratio: string;
+  confidence: string;
 };
 
 export type ScannedPlannedTrade = {
@@ -625,10 +626,28 @@ export type ScannedPlannedTrade = {
   rationale: string;
 };
 
+export type ScannedOiSkew = {
+  symbol: string;
+  call_open_interest: number;
+  put_open_interest: number;
+  direction: "calls" | "puts";
+  ratio: string;
+  confidence: string;
+};
+
+export type ScannedBreakout = {
+  symbol: string;
+  direction: "bullish" | "bearish";
+  reason: string;
+  confidence: string;
+};
+
 export type OptionsScan = {
   generated_at: string;
   symbols_scanned: number;
   unusual_activity: ScannedUnusualContract[];
+  oi_skew: ScannedOiSkew[];
+  breakouts: ScannedBreakout[];
   planned_trades: ScannedPlannedTrade[];
   errors: { symbol: string; detail: string }[];
 };

@@ -30,6 +30,7 @@ class ScannedUnusualContract:
     symbol: str
     contract: OptionContract
     volume_oi_ratio: Decimal
+    confidence: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +38,24 @@ class ScannedPlannedTrade:
     symbol: str
     contract: OptionContract
     rationale: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScannedOiSkew:
+    symbol: str
+    call_open_interest: int
+    put_open_interest: int
+    direction: str
+    ratio: Decimal
+    confidence: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class ScannedBreakout:
+    symbol: str
+    direction: str
+    reason: str
+    confidence: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +68,8 @@ class ScannerError:
 class OptionsScanResult:
     symbols_scanned: int
     unusual_activity: tuple[ScannedUnusualContract, ...]
+    oi_skew: tuple[ScannedOiSkew, ...]
+    breakouts: tuple[ScannedBreakout, ...]
     planned_trades: tuple[ScannedPlannedTrade, ...]
     errors: tuple[ScannerError, ...]
 
@@ -77,6 +98,8 @@ class OptionsScannerService:
 
         unusual: list[ScannedUnusualContract] = []
         planned: list[ScannedPlannedTrade] = []
+        oi_skew: list[ScannedOiSkew] = []
+        breakouts: list[ScannedBreakout] = []
         errors: list[ScannerError] = []
         succeeded = 0
         for symbol, outcome in zip(universe, outcomes, strict=True):
@@ -87,7 +110,10 @@ class OptionsScannerService:
             for item in outcome.unusual_activity:
                 unusual.append(
                     ScannedUnusualContract(
-                        symbol=symbol, contract=item.contract, volume_oi_ratio=item.volume_oi_ratio
+                        symbol=symbol,
+                        contract=item.contract,
+                        volume_oi_ratio=item.volume_oi_ratio,
+                        confidence=item.confidence,
                     )
                 )
             for plan in outcome.planned_trades:
@@ -96,11 +122,35 @@ class OptionsScannerService:
                         symbol=symbol, contract=plan.contract, rationale=plan.rationale
                     )
                 )
+            if outcome.oi_skew is not None:
+                oi_skew.append(
+                    ScannedOiSkew(
+                        symbol=symbol,
+                        call_open_interest=outcome.oi_skew.call_open_interest,
+                        put_open_interest=outcome.oi_skew.put_open_interest,
+                        direction=outcome.oi_skew.direction,
+                        ratio=outcome.oi_skew.ratio,
+                        confidence=outcome.oi_skew.confidence,
+                    )
+                )
+            if outcome.breakout is not None:
+                breakouts.append(
+                    ScannedBreakout(
+                        symbol=symbol,
+                        direction=outcome.breakout.direction,
+                        reason=outcome.breakout.reason,
+                        confidence=outcome.breakout.confidence,
+                    )
+                )
 
         unusual.sort(key=lambda item: item.volume_oi_ratio, reverse=True)
+        oi_skew.sort(key=lambda item: item.confidence, reverse=True)
+        breakouts.sort(key=lambda item: item.confidence, reverse=True)
         return OptionsScanResult(
             symbols_scanned=succeeded,
             unusual_activity=tuple(unusual[:top_n]),
+            oi_skew=tuple(oi_skew[:top_n]),
+            breakouts=tuple(breakouts[:top_n]),
             planned_trades=tuple(planned),
             errors=tuple(errors),
         )

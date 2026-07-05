@@ -19,12 +19,18 @@ from backend.app.api.v1.options import (
     _contract_response,
     get_options_provider,
 )
-from backend.app.api.v1.options_portfolio import DEFAULT_UNIVERSE as SCANNER_UNIVERSE
+from backend.app.api.v1.portfolio import DEFAULT_UNIVERSE as STOCK_UNIVERSE
 from backend.app.application.market_data import MarketDataService
 from backend.app.application.options_scanner import DEFAULT_TOP_N, OptionsScannerService
 from backend.app.domain.options import OptionsProvider
 
 router = APIRouter(prefix="/scanner", tags=["scanner"])
+
+# Broader than the 10-symbol options-portfolio sleeve: the 0DTE-capable index ETFs
+# plus the full diversified stock universe, so unusual flow, OI buildup, and
+# breakouts surface across many more names instead of a handful. Every symbol here
+# already has real chain/history coverage elsewhere in the platform.
+SCANNER_UNIVERSE = tuple(dict.fromkeys(("SPY", "QQQ", "IWM", *STOCK_UNIVERSE)))
 
 MaxDte = Annotated[int, Query(ge=0, le=45)]
 TopN = Annotated[int, Query(ge=1, le=100)]
@@ -36,6 +42,7 @@ class ScannedUnusualContractResponse(BaseModel):
     symbol: str
     contract: OptionContractResponse
     volume_oi_ratio: Decimal
+    confidence: Decimal
 
 
 class ScannedPlannedTradeResponse(BaseModel):
@@ -44,6 +51,26 @@ class ScannedPlannedTradeResponse(BaseModel):
     symbol: str
     contract: OptionContractResponse
     rationale: str
+
+
+class ScannedOiSkewResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    call_open_interest: int
+    put_open_interest: int
+    direction: str
+    ratio: Decimal
+    confidence: Decimal
+
+
+class ScannedBreakoutResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    direction: str
+    reason: str
+    confidence: Decimal
 
 
 class ScannerErrorResponse(BaseModel):
@@ -59,6 +86,8 @@ class OptionsScanResponse(BaseModel):
     generated_at: str
     symbols_scanned: int
     unusual_activity: tuple[ScannedUnusualContractResponse, ...]
+    oi_skew: tuple[ScannedOiSkewResponse, ...]
+    breakouts: tuple[ScannedBreakoutResponse, ...]
     planned_trades: tuple[ScannedPlannedTradeResponse, ...]
     errors: tuple[ScannerErrorResponse, ...]
 
@@ -85,8 +114,29 @@ def scan_unusual_activity(
                 symbol=item.symbol,
                 contract=_contract_response(item.contract),
                 volume_oi_ratio=item.volume_oi_ratio,
+                confidence=item.confidence,
             )
             for item in result.unusual_activity
+        ),
+        oi_skew=tuple(
+            ScannedOiSkewResponse(
+                symbol=item.symbol,
+                call_open_interest=item.call_open_interest,
+                put_open_interest=item.put_open_interest,
+                direction=item.direction,
+                ratio=item.ratio,
+                confidence=item.confidence,
+            )
+            for item in result.oi_skew
+        ),
+        breakouts=tuple(
+            ScannedBreakoutResponse(
+                symbol=item.symbol,
+                direction=item.direction,
+                reason=item.reason,
+                confidence=item.confidence,
+            )
+            for item in result.breakouts
         ),
         planned_trades=tuple(
             ScannedPlannedTradeResponse(

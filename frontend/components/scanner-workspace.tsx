@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { EmptyState } from "@/components/page-panel";
-import { ErrorNote, LoadingBlock, formatCurrency, formatNumber, formatPercent } from "@/components/research";
+import {
+  ConfidenceBadge,
+  ErrorNote,
+  LoadingBlock,
+  formatCurrency,
+  formatNumber,
+  formatPercent
+} from "@/components/research";
 import { ApiError, fetchOptionsScan, type OptionsScan } from "@/lib/api";
 
 export function ScannerWorkspace() {
@@ -33,12 +40,13 @@ export function ScannerWorkspace() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-terminal-accent">Scanner</p>
-            <h2 className="mt-3 text-2xl font-semibold">Unusual Options Activity, Universe-Wide</h2>
+            <h2 className="mt-3 text-2xl font-semibold">Options Flow, Universe-Wide</h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-terminal-muted">
-              Every symbol in the options universe scanned at once, ranked together by volume ÷
-              open interest — the same real chain data the single-symbol Options tab uses, just
-              merged across the whole board so unusual flow surfaces without checking each
-              ticker one at a time.
+              Every symbol in the scanner universe checked at once for three real signals — unusual
+              volume, call/put open-interest buildup, and price breakouts — each scored with an
+              honest confidence so you can triage at a glance instead of reading raw numbers.
+              Real chain and price data only; a symbol that can&apos;t be fetched surfaces as an
+              error rather than a guess.
             </p>
           </div>
           <button
@@ -59,7 +67,7 @@ export function ScannerWorkspace() {
       </section>
 
       {error ? <ErrorNote message={error} /> : null}
-      {loading && !data ? <LoadingBlock label="Scanning the universe for unusual activity…" /> : null}
+      {loading && !data ? <LoadingBlock label="Scanning the universe for options flow…" /> : null}
 
       {data && data.errors.length ? (
         <ErrorNote
@@ -72,7 +80,131 @@ export function ScannerWorkspace() {
       {data ? (
         <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="text-lg font-semibold">Top unusual activity</h3>
+            <div>
+              <h3 className="text-lg font-semibold">Call/put OI buildup</h3>
+              <p className="mt-1 max-w-2xl text-xs text-terminal-muted">
+                Where standing open interest right now is lopsided toward calls or puts — a
+                snapshot of positioning, not a historical trend (the provider only exposes
+                current OI). Ranked by confidence.
+              </p>
+            </div>
+            <p className="text-xs text-terminal-muted">
+              {data.oi_skew.length ? `${data.oi_skew.length} symbol(s)` : ""}
+            </p>
+          </div>
+          {data.oi_skew.length ? (
+            <div className="mt-4 overflow-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-terminal-muted">
+                  <tr>
+                    <th className="py-2 pr-4">Symbol</th>
+                    <th className="py-2 pr-4">Building toward</th>
+                    <th className="py-2 pr-4 text-right">Call OI</th>
+                    <th className="py-2 pr-4 text-right">Put OI</th>
+                    <th className="py-2 pr-4 text-right">Skew</th>
+                    <th className="py-2 text-right">Confidence</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {data.oi_skew.map((item) => (
+                    <tr className="border-t border-terminal-border/60" key={item.symbol}>
+                      <td className="py-2 pr-4 font-semibold">
+                        <Link className="hover:text-terminal-accent" href={`/options?symbol=${item.symbol}`}>
+                          {item.symbol}
+                        </Link>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <span
+                          className={`uppercase ${
+                            item.direction === "calls" ? "text-emerald-300" : "text-terminal-danger"
+                          }`}
+                        >
+                          {item.direction}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-right">{formatNumber(item.call_open_interest)}</td>
+                      <td className="py-2 pr-4 text-right">{formatNumber(item.put_open_interest)}</td>
+                      <td className="py-2 pr-4 text-right text-terminal-accent">{item.ratio}×</td>
+                      <td className="py-2 text-right">
+                        <ConfidenceBadge value={item.confidence} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-terminal-muted">
+              No symbol cleared the open-interest skew threshold right now.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {data ? (
+        <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h3 className="text-lg font-semibold">Price breakouts</h3>
+              <p className="mt-1 max-w-2xl text-xs text-terminal-muted">
+                Underlying closes that broke above or below the prior 20-session range — the same
+                breakout agent that votes in the master decision, run standalone across the whole
+                universe.
+              </p>
+            </div>
+            <p className="text-xs text-terminal-muted">
+              {data.breakouts.length ? `${data.breakouts.length} symbol(s)` : ""}
+            </p>
+          </div>
+          {data.breakouts.length ? (
+            <div className="mt-4 overflow-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-terminal-muted">
+                  <tr>
+                    <th className="py-2 pr-4">Symbol</th>
+                    <th className="py-2 pr-4">Direction</th>
+                    <th className="py-2 pr-4">Reason</th>
+                    <th className="py-2 text-right">Confidence</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono">
+                  {data.breakouts.map((item) => (
+                    <tr className="border-t border-terminal-border/60" key={item.symbol}>
+                      <td className="py-2 pr-4 font-semibold">
+                        <Link className="hover:text-terminal-accent" href={`/options?symbol=${item.symbol}`}>
+                          {item.symbol}
+                        </Link>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <span
+                          className={`uppercase ${
+                            item.direction === "bullish" ? "text-emerald-300" : "text-terminal-danger"
+                          }`}
+                        >
+                          {item.direction}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-xs text-terminal-muted">{item.reason}</td>
+                      <td className="py-2 text-right">
+                        <ConfidenceBadge value={item.confidence} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-terminal-muted">
+              No symbol broke out of its prior 20-session range right now.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {data ? (
+        <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-lg font-semibold">Unusual volume activity</h3>
             <p className="text-xs text-terminal-muted">
               Ranked by volume ÷ open interest{" "}
               {data.unusual_activity.length ? `· top ${data.unusual_activity.length}` : ""}
@@ -80,7 +212,7 @@ export function ScannerWorkspace() {
           </div>
           {data.unusual_activity.length ? (
             <div className="mt-4 overflow-auto">
-              <table className="w-full min-w-[860px] text-left text-sm">
+              <table className="w-full min-w-[940px] text-left text-sm">
                 <thead className="text-xs uppercase tracking-wide text-terminal-muted">
                   <tr>
                     <th className="py-2 pr-4">Symbol</th>
@@ -90,7 +222,8 @@ export function ScannerWorkspace() {
                     <th className="py-2 pr-4 text-right">Volume</th>
                     <th className="py-2 pr-4 text-right">OI</th>
                     <th className="py-2 pr-4 text-right">Vol/OI</th>
-                    <th className="py-2 text-right">IV</th>
+                    <th className="py-2 pr-4 text-right">IV</th>
+                    <th className="py-2 text-right">Confidence</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono">
@@ -122,10 +255,13 @@ export function ScannerWorkspace() {
                       <td className="py-2 pr-4 text-right text-terminal-accent">
                         {item.volume_oi_ratio}
                       </td>
-                      <td className="py-2 text-right">
+                      <td className="py-2 pr-4 text-right">
                         {item.contract.implied_volatility
                           ? formatPercent(item.contract.implied_volatility)
                           : "—"}
+                      </td>
+                      <td className="py-2 text-right">
+                        <ConfidenceBadge value={item.confidence} />
                       </td>
                     </tr>
                   ))}

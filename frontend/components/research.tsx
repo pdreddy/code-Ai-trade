@@ -43,6 +43,26 @@ export function ActionBadge({ action }: Readonly<{ action: SignalAction }>) {
   );
 }
 
+// Tiered so a viewer can triage at a glance: green = high-conviction, yellow =
+// worth a look, gray = weak. The threshold cuts mirror the buy/sell confidence
+// bands already used by the master decision engine.
+function confidenceStyle(value: number): string {
+  if (value >= 0.7) return "bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+  if (value >= 0.4) return "bg-terminal-warning/10 text-terminal-warning border-terminal-warning/30";
+  return "bg-black/20 text-terminal-muted border-terminal-border";
+}
+
+export function ConfidenceBadge({ value }: Readonly<{ value: string | number }>) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 font-mono text-xs font-semibold ${confidenceStyle(numeric)}`}
+    >
+      {formatPercent(numeric, 0)}
+    </span>
+  );
+}
+
 export function Sparkline({
   values,
   width = 640,
