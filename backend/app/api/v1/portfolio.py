@@ -28,8 +28,13 @@ from backend.app.application.portfolio_execution import (
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
-# The "Magnificent Seven" mega-cap tech names.
-DEFAULT_UNIVERSE = ("AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA")
+# The Magnificent Seven plus a diversified slice of other high-liquidity names
+# (semis, streaming, financials, energy, entertainment, cloud, growth) so the
+# portfolio isn't just a tech-concentration bet.
+DEFAULT_UNIVERSE = (
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+    "AMD", "NFLX", "JPM", "XOM", "DIS", "AVGO", "PLTR", "CRM",
+)
 MAX_RANGE_DAYS = 3660
 
 ExecuteDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]

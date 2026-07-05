@@ -38,8 +38,10 @@ router = APIRouter(prefix="/options-portfolio", tags=["options-portfolio"])
 # True same-day (0DTE) expiries are only reliably listed on broad index ETFs;
 # single-name equities generally only list weekly (Friday) expiries. This
 # universe blends both so the 0DTE style has real-world grounding and the
-# weekly style still covers the platform's Magnificent 7 names.
-DEFAULT_UNIVERSE = ("SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "TSLA")
+# weekly style covers a wider, still highly-optioned slice of single names.
+DEFAULT_UNIVERSE = (
+    "SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "TSLA", "AMD", "META", "GOOGL",
+)
 MAX_RANGE_DAYS = 3660
 LEDGER_CAPITAL = Decimal("10000")
 

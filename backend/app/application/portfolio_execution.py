@@ -98,7 +98,7 @@ class PortfolioExecutionService:
     """Run the strategy across a universe and aggregate the sleeves into a portfolio."""
 
     market_data: MarketDataService
-    max_workers: int = 8
+    max_workers: int = 12
 
     def run(
         self, symbols: Sequence[str], capital: Decimal, days: int

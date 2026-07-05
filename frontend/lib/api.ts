@@ -523,3 +523,77 @@ export async function tickOptionsPaperLedger(
     clearTimeout(timeout);
   }
 }
+
+export type WatchlistQuote = {
+  symbol: string;
+  last_close: string;
+  prior_close: string | null;
+  change_pct: string | null;
+  as_of: string;
+  action: SignalAction;
+  confidence: string;
+};
+
+export type WatchlistErrorEntry = {
+  symbol: string;
+  detail: string;
+};
+
+export type Watchlist = {
+  generated_at: string;
+  quotes: WatchlistQuote[];
+  errors: WatchlistErrorEntry[];
+};
+
+// Fanning out real quote+signal fetches across the whole universe takes longer
+// than a single-symbol request but is still bounded by the concurrent backend
+// fetch, so a shorter cache than the portfolio views is enough to feel snappy.
+const WATCHLIST_CACHE_TTL_MS = 5 * 60 * 1000;
+let watchlistCache: { at: number; value: Promise<Watchlist> } | null = null;
+
+export function fetchWatchlist({ force = false }: { force?: boolean } = {}): Promise<Watchlist> {
+  if (!force && watchlistCache && Date.now() - watchlistCache.at < WATCHLIST_CACHE_TTL_MS) {
+    return watchlistCache.value;
+  }
+  const value = getJson<Watchlist>("/watchlist", PORTFOLIO_TIMEOUT_MS).catch((error: unknown) => {
+    watchlistCache = null;
+    throw error;
+  });
+  watchlistCache = { at: Date.now(), value };
+  return value;
+}
+
+export type ScannedUnusualContract = {
+  symbol: string;
+  contract: OptionContract;
+  volume_oi_ratio: string;
+};
+
+export type ScannedPlannedTrade = {
+  symbol: string;
+  contract: OptionContract;
+  rationale: string;
+};
+
+export type OptionsScan = {
+  generated_at: string;
+  symbols_scanned: number;
+  unusual_activity: ScannedUnusualContract[];
+  planned_trades: ScannedPlannedTrade[];
+  errors: { symbol: string; detail: string }[];
+};
+
+const SCANNER_CACHE_TTL_MS = 5 * 60 * 1000;
+let scannerCache: { at: number; value: Promise<OptionsScan> } | null = null;
+
+export function fetchOptionsScan({ force = false }: { force?: boolean } = {}): Promise<OptionsScan> {
+  if (!force && scannerCache && Date.now() - scannerCache.at < SCANNER_CACHE_TTL_MS) {
+    return scannerCache.value;
+  }
+  const value = getJson<OptionsScan>("/scanner", PORTFOLIO_TIMEOUT_MS).catch((error: unknown) => {
+    scannerCache = null;
+    throw error;
+  });
+  scannerCache = { at: Date.now(), value };
+  return value;
+}

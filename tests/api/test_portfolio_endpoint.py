@@ -23,7 +23,7 @@ from backend.app.main import create_app  # noqa: E402
 
 BAR_COUNT = 400
 TWO_SYMBOLS = 2
-MAG7_SYMBOL_COUNT = 7
+DEFAULT_STOCK_UNIVERSE_COUNT = 15
 
 
 def _oscillating(index: int) -> Decimal:
@@ -107,5 +107,5 @@ def test_execute_portfolio_defaults_to_full_universe() -> None:
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["symbol_count"] == MAG7_SYMBOL_COUNT
+    assert payload["symbol_count"] == DEFAULT_STOCK_UNIVERSE_COUNT
     assert payload["errors"] == []

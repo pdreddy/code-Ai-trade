@@ -22,13 +22,20 @@ export const terminalPages: TerminalPage[] = [
     label: "Options Portfolio",
     description: "$10k 0DTE/weekly track record"
   },
+  { href: "/scanner", label: "Scanner", description: "Unusual options activity, universe-wide" },
   { href: "/paper-trades", label: "Paper Trades", description: "Paper broker activity" },
   { href: "/portfolio", label: "Portfolio", description: "Cash, exposure, risk" },
-  { href: "/analytics", label: "Analytics", description: "Performance attribution" }
+  { href: "/analytics", label: "Analytics", description: "Performance attribution" },
+  { href: "/trade-history", label: "Trade History", description: "Every trade, day by day" }
 ];
 
-// The "Magnificent Seven" mega-cap tech names.
-export const supportedUniverse = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
+// Magnificent Seven plus a diversified slice of other high-liquidity names
+// (semis, streaming, financials, energy, entertainment, cloud, growth) so the
+// portfolio isn't just a tech-concentration bet. Mirrors the backend default.
+export const supportedUniverse = [
+  "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+  "AMD", "NFLX", "JPM", "XOM", "DIS", "AVGO", "PLTR", "CRM"
+];
 
 export const backendCapabilities: Capability[] = [
   {

@@ -91,7 +91,7 @@ class OptionsPortfolioExecutionService:
     """Run the modeled options backtester across a universe and aggregate it."""
 
     market_data: MarketDataService
-    max_workers: int = 8
+    max_workers: int = 10
 
     def run(
         self,

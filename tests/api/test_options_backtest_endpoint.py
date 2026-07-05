@@ -23,7 +23,7 @@ from backend.app.main import create_app  # noqa: E402
 
 BAR_COUNT = 400
 TWO_SYMBOLS = 2
-DEFAULT_OPTIONS_UNIVERSE_COUNT = 7
+DEFAULT_OPTIONS_UNIVERSE_COUNT = 10
 
 
 def _oscillating(index: int) -> Decimal:
