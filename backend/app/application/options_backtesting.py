@@ -27,6 +27,8 @@ from backend.app.application.decision_engine import (
     MasterDecisionRequest,
 )
 from backend.app.application.options_pricing import (
+    MIN_PREMIUM,
+    MIN_YEARS_TO_EXPIRY,
     BlackScholesInputs,
     OptionSide,
     black_scholes_price,
@@ -243,24 +245,43 @@ class OptionsBacktester:
         spot = entry_bar.open.value
         strike = round_to_strike_increment(spot)
         side = OptionSide.CALL if decision.action is SignalAction.BUY else OptionSide.PUT
-        years_to_expiry = Decimal(max((expiration - entry_date).days, 0)) / Decimal("365")
-        sigma = realized_volatility(closes, lookback=VOL_LOOKBACK_DAYS)
-        premium = black_scholes_price(
-            BlackScholesInputs(
-                spot=spot,
-                strike=strike,
-                years_to_expiry=years_to_expiry,
-                risk_free_rate=self.risk_free_rate,
-                volatility=sigma,
-                side=side,
-            )
+        # Same-day expiry (0DTE, or a weekly entered on its own Friday) must never
+        # collapse to a literal T=0 here: that would price the entry at raw
+        # intrinsic value instead of real remaining time value, which — since the
+        # strike is rounded to be at-the-money against this same spot — can
+        # underflow to a fraction of a cent and size an unrealistic number of
+        # contracts below. There is still genuine intraday time value left when a
+        # same-day contract is opened at the open.
+        years_to_expiry = max(
+            Decimal(max((expiration - entry_date).days, 0)) / Decimal("365"),
+            MIN_YEARS_TO_EXPIRY,
         )
-        if premium <= Decimal("0"):
-            return cash, None
+        sigma = realized_volatility(closes, lookback=VOL_LOOKBACK_DAYS)
+        premium = max(
+            black_scholes_price(
+                BlackScholesInputs(
+                    spot=spot,
+                    strike=strike,
+                    years_to_expiry=years_to_expiry,
+                    risk_free_rate=self.risk_free_rate,
+                    volatility=sigma,
+                    side=side,
+                )
+            ),
+            MIN_PREMIUM,
+        )
 
         contract_cost = premium * CONTRACT_MULTIPLIER
-        premium_budget = cash * self.premium_budget_fraction
-        contracts = int(premium_budget // contract_cost) if contract_cost > Decimal("0") else 0
+        # Sized off the smaller of current cash or the ORIGINAL capital: a short-dated
+        # near-the-money contract carries enormous embedded leverage (spot / premium
+        # is routinely 100-500x), so reinvesting a fixed fraction of an already-grown
+        # cash pile compounds explosively — a real edge would still turn $10k into
+        # something absurd like $10k -> $1B within a couple hundred trades. Capping
+        # the budget to the starting capital keeps each bet's risk roughly constant
+        # in dollar terms as a real risk-managed account would, so gains accumulate
+        # from genuine wins rather than from repeatedly re-leveraging past wins.
+        premium_budget = min(cash, self.initial_capital) * self.premium_budget_fraction
+        contracts = int(premium_budget // contract_cost)
         if contracts < 1:
             if cash >= contract_cost + COMMISSION_PER_CONTRACT:
                 contracts = 1
@@ -289,7 +310,10 @@ class OptionsBacktester:
         if position is None:
             return Decimal("0")
         today = bar.timestamp.date()
-        years_remaining = Decimal(max((position.expiration - today).days, 0)) / Decimal("365")
+        years_remaining = max(
+            Decimal(max((position.expiration - today).days, 0)) / Decimal("365"),
+            MIN_YEARS_TO_EXPIRY,
+        )
         sigma = realized_volatility(closes, lookback=VOL_LOOKBACK_DAYS)
         mark_premium = black_scholes_price(
             BlackScholesInputs(
@@ -316,7 +340,10 @@ class OptionsBacktester:
         if at_expiration:
             exit_premium = intrinsic_value(bar.close.value, position.strike, position.option_side)
         else:
-            years_remaining = Decimal(max((position.expiration - today).days, 0)) / Decimal("365")
+            years_remaining = max(
+                Decimal(max((position.expiration - today).days, 0)) / Decimal("365"),
+                MIN_YEARS_TO_EXPIRY,
+            )
             exit_premium = black_scholes_price(
                 BlackScholesInputs(
                     spot=bar.close.value,

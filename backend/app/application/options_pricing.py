@@ -31,6 +31,13 @@ TRADING_DAYS_PER_YEAR = 252
 MIN_SIGMA = Decimal("0.05")
 MIN_YEARS_TO_EXPIRY = Decimal("1") / Decimal("365") / Decimal("4")  # ~6 intraday hours
 
+# Real listed contracts don't trade below a nickel. Without this floor, an
+# at-the-money 0DTE/Friday-weekly premium priced with near-zero time value can
+# round to a fraction of a cent, which (via premium_budget // contract_cost in
+# the backtester) sizes an unrealistic number of contracts and turns an
+# ordinary intraday move into an unbounded, compounding P&L swing.
+MIN_PREMIUM = Decimal("0.05")
+
 
 class OptionSide(StrEnum):
     CALL = "call"

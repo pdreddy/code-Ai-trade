@@ -101,6 +101,24 @@ def test_cash_conservation_never_exceeds_initial_capital_plus_gains() -> None:
         assert point.equity >= Decimal("0")
 
 
+def test_no_single_trade_or_final_equity_can_blow_up_unrealistically() -> None:
+    # Regression guard: a same-day (0DTE) or Friday-entered weekly contract used to
+    # collapse to a near-zero raw-intrinsic entry premium, sizing an unbounded
+    # number of contracts that, compounded across hundreds of trades, produced
+    # single trades losing/winning billions of dollars against a $10k account.
+    # These bounds are generous (real leveraged options swings can be large) but
+    # would catch any regression back toward that kind of magnitude.
+    instrument_id = uuid4()
+    bars = _bars(instrument_id, BAR_COUNT)
+
+    for style in (OptionsStyle.ZERO_DTE, OptionsStyle.WEEKLY):
+        result = _backtester(style).run(instrument_id, "SPY", bars)
+
+        for trade in result.trades:
+            assert abs(trade.realized_pnl) < INITIAL_CAPITAL * Decimal("20")
+        assert result.final_equity < INITIAL_CAPITAL * Decimal("1000")
+
+
 def test_options_backtest_requires_minimum_bars() -> None:
     instrument_id = uuid4()
     bars = _bars(instrument_id, 10)
