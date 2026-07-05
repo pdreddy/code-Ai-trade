@@ -33,11 +33,13 @@ from backend.app.application.options_research import (
     OptionsResearchService,
 )
 from backend.app.application.portfolio_execution import instrument_id
+from backend.app.core.config import Settings, get_settings
 from backend.app.domain.errors import DomainValidationError
 from backend.app.domain.options import OptionContract, OptionsProvider
 from backend.app.domain.providers import HistoricalMarketDataRequest
+from backend.app.infrastructure.providers.factory import create_options_provider
+from backend.app.infrastructure.providers.tradier_options import TradierProviderError
 from backend.app.infrastructure.providers.yahoo import YahooFinanceProviderError
-from backend.app.infrastructure.providers.yahoo_options import YahooOptionsProvider
 
 router = APIRouter(prefix="/options", tags=["options"])
 
@@ -47,11 +49,15 @@ MAX_RANGE_DAYS = 3660
 BacktestDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
 BacktestCapital = Annotated[Decimal, Query(gt=0)]
 
+# Both providers surface upstream failures as one of these; caught together
+# wherever an options fetch can fail regardless of which is configured.
+OptionsProviderErrors = (YahooFinanceProviderError, TradierProviderError)
 
-def get_options_provider() -> OptionsProvider:
+
+def get_options_provider(settings: Annotated[Settings, Depends(get_settings)]) -> OptionsProvider:
     """Provide the configured options provider (overridable in tests)."""
 
-    return YahooOptionsProvider()
+    return create_options_provider(settings)
 
 
 class OptionContractResponse(BaseModel):
@@ -112,7 +118,7 @@ def options_research(
     service = OptionsResearchService(options=options, market_data=market_data)
     try:
         research = service.research(symbol, max_dte=max_dte)
-    except YahooFinanceProviderError as exc:
+    except OptionsProviderErrors as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return _research_response(research, max_dte)
 

@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["local", "test", "staging", "production"]
 MarketDataProvider = Literal["yahoo"]
+OptionsDataProvider = Literal["yahoo", "tradier"]
 
 
 class Settings(BaseSettings):
@@ -31,6 +32,12 @@ class Settings(BaseSettings):
     cors_origins: tuple[str, ...] = ("http://localhost:3000",)
     demo_mode: bool = False
     market_data_provider: MarketDataProvider = "yahoo"
+    # Yahoo's undocumented options endpoint blocks server/datacenter IPs far more
+    # aggressively than its chart endpoint, so a real alternative (Tradier's free
+    # developer sandbox) is available behind the same OptionsProvider contract.
+    options_data_provider: OptionsDataProvider = "yahoo"
+    tradier_api_token: str | None = None
+    tradier_base_url: str = "https://sandbox.tradier.com/v1"
     database_url: PostgresDsn = Field(
         default=PostgresDsn("postgresql+psycopg://quant:quant@localhost:5432/quant")
     )
