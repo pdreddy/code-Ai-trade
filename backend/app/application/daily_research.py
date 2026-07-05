@@ -16,6 +16,12 @@ DEFAULT_RESEARCH_SYMBOLS = ("SPY", "QQQ", "IWM", "DIA")
 DEFAULT_STARTING_CAPITAL = Decimal("10000")
 SHORT_WINDOW = 20
 LONG_WINDOW = 50
+TREND_WINDOW = 100
+REGIME_WINDOW = 200
+TRAILING_STOP_FRACTION = Decimal("0.92")
+CAPITAL_DEPLOYMENT_FRACTION = Decimal("0.95")
+STOP_LOSS_FRACTION = Decimal("0.92")
+TAKE_PROFIT_FRACTION = Decimal("1.18")
 LOOKBACK_DAYS = 365 * 5 + 2
 MIN_VOLATILITY_OBSERVATIONS = 2
 
@@ -47,7 +53,7 @@ class DailyTrade:
     position_size: Decimal = Decimal("0")
     entry_signal: str = "BUY"
     exit_signal: str = "SELL"
-    strategy_name: str = "sma20_sma50_momentum"
+    strategy_name: str = "regime_trend_pullback"
     regime: str = "unknown"
     ai_confidence: Decimal = Decimal("0")
     risk_reward: Decimal = Decimal("2")
@@ -276,31 +282,37 @@ class DailyResearchService:
             options_watchlist=tuple(options_watchlist),
         )
 
-    def _backtest(
+    def _backtest(  # noqa: PLR0915
         self, symbol: str, bars: list[ResearchBar], starting_capital: Decimal
     ) -> BacktestSummary:
         cash = starting_capital
         quantity = Decimal("0")
         entry_price: Decimal | None = None
         entry_date: date | None = None
+        highest_close: Decimal | None = None
         peak_equity = starting_capital
         max_drawdown = Decimal("0")
         previous_equity = starting_capital
         invested_sessions = 0
         trades: list[DailyTrade] = []
         equity_curve: list[EquityPoint] = []
+        start_index = self._strategy_start_index(bars)
 
-        for index in range(LONG_WINDOW, len(bars) - 1):
-            signal = self._signal(bars, index, quantity > 0)
+        for index in range(start_index, len(bars) - 1):
+            signal = self._signal(bars, index, quantity > 0, highest_close)
             fill_bar = bars[index + 1]
             if signal == "BUY" and quantity == 0:
-                quantity = (cash / fill_bar.open).quantize(
+                deployable_cash = cash * CAPITAL_DEPLOYMENT_FRACTION
+                quantity = (deployable_cash / fill_bar.open).quantize(
                     Decimal("0.0001"), rounding=ROUND_DOWN
                 )
                 cash -= quantity * fill_bar.open
                 entry_price = fill_bar.open
                 entry_date = fill_bar.session
-            elif (
+                highest_close = bars[index].close
+            elif quantity > 0:
+                highest_close = max(highest_close or bars[index].close, bars[index].close)
+            if (
                 signal == "SELL"
                 and quantity > 0
                 and entry_price is not None
@@ -320,21 +332,24 @@ class DailyResearchService:
                         quantity=quantity,
                         pnl=pnl,
                         return_pct=fill_bar.open / entry_price - 1,
-                        reason="signal_on_close_fill_next_open",
+                        reason="regime_trend_exit_fill_next_open",
                         trade_id=f"{symbol}-{entry_date.isoformat()}-{fill_bar.session.isoformat()}",
                         holding_period_days=holding_days,
                         position_size=entry_price * quantity,
+                        strategy_name="regime_trend_pullback",
                         regime=self._market_regime(bars, index),
                         ai_confidence=confidence,
-                        stop_loss=entry_price * Decimal("0.97"),
-                        take_profit=entry_price * Decimal("1.06"),
+                        stop_loss=entry_price * STOP_LOSS_FRACTION,
+                        take_profit=entry_price * TAKE_PROFIT_FRACTION,
                         gross_pnl=pnl,
                         net_pnl=pnl,
+                        notes="regime_filter_trailing_stop_next_open",
                     )
                 )
                 quantity = Decimal("0")
                 entry_price = None
                 entry_date = None
+                highest_close = None
             equity = cash + quantity * bars[index].close
             peak_equity = max(peak_equity, equity)
             drawdown = equity / peak_equity - 1
@@ -378,10 +393,11 @@ class DailyResearchService:
                     holding_period_days=max(1, (bars[-1].session - entry_date).days),
                     position_size=entry_price * quantity,
                     exit_signal="OPEN",
+                    strategy_name="regime_trend_pullback",
                     regime=self._market_regime(bars, len(bars) - 1),
                     ai_confidence=self._signal_confidence(bars, len(bars) - 1),
-                    stop_loss=entry_price * Decimal("0.97"),
-                    take_profit=entry_price * Decimal("1.06"),
+                    stop_loss=entry_price * STOP_LOSS_FRACTION,
+                    take_profit=entry_price * TAKE_PROFIT_FRACTION,
                     notes="open_position_marked_to_latest_close",
                 )
             )
@@ -554,15 +570,15 @@ class DailyResearchService:
         self, symbol: str, bars: list[ResearchBar], open_position: bool, starting_capital: Decimal
     ) -> NextDayCandidate:
         index = len(bars) - 1
-        signal = self._signal(bars, index, open_position)
+        signal = self._signal(bars, index, open_position, None)
         latest = bars[index]
         short = self._average_close(bars, index, SHORT_WINDOW)
-        long = self._average_close(bars, index, LONG_WINDOW)
+        long = self._average_close(bars, index, self._regime_window(bars))
         momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
         confidence = self._signal_confidence(bars, index)
         ai_score = min(Decimal("100"), max(Decimal("0"), confidence * Decimal("100")))
         risk_score = min(Decimal("100"), abs(momentum) * Decimal("200"))
-        risk_notional = starting_capital * Decimal("0.25")
+        risk_notional = starting_capital * CAPITAL_DEPLOYMENT_FRACTION
         suggested_quantity = (risk_notional / latest.close).quantize(
             Decimal("0.0001"), rounding=ROUND_DOWN
         ) if signal == "BUY" else Decimal("0")
@@ -570,7 +586,7 @@ class DailyResearchService:
         reasons = (
             f"close={latest.close.quantize(Decimal('0.0001'))}",
             f"sma20={short.quantize(Decimal('0.0001'))}",
-            f"sma50={long.quantize(Decimal('0.0001'))}",
+            f"regime_sma={long.quantize(Decimal('0.0001'))}",
             f"20d_momentum={momentum.quantize(Decimal('0.0001'))}",
             "signal_on_close_fill_next_open",
         )
@@ -581,17 +597,17 @@ class DailyResearchService:
             confidence=confidence,
             planned_execution="next_session_open_paper_candidate",
             last_close=latest.close,
-            stop_loss=latest.close * Decimal("0.97") if signal == "BUY" else None,
-            take_profit=latest.close * Decimal("1.06") if signal == "BUY" else None,
+            stop_loss=latest.close * STOP_LOSS_FRACTION if signal == "BUY" else None,
+            take_profit=latest.close * TAKE_PROFIT_FRACTION if signal == "BUY" else None,
             suggested_quantity=suggested_quantity,
             suggested_notional=suggested_notional,
             reasons=reasons,
             ai_score=ai_score,
-            strategy="sma20_sma50_momentum",
-            risk_reward=Decimal("2"),
-            expected_return=Decimal("0.06") if signal == "BUY" else Decimal("0"),
-            expected_holding_days=20,
-            catalysts=("trend_above_sma20_sma50", "positive_20d_momentum"),
+            strategy="regime_trend_pullback",
+            risk_reward=Decimal("2.25"),
+            expected_return=Decimal("0.10") if signal == "BUY" else Decimal("0"),
+            expected_holding_days=45,
+            catalysts=("risk_on_regime", "trend_pullback_recovery", "positive_20d_momentum"),
             news_summary="News provider not configured; signal is technical-only.",
             institutional_flow="Options/news flow requires configured premium providers.",
             agent_scores=self._agent_scores(short, long, momentum, confidence),
@@ -599,16 +615,40 @@ class DailyResearchService:
             risk_score=risk_score,
         )
 
-    def _signal(self, bars: list[ResearchBar], index: int, open_position: bool) -> str:
+    def _signal(
+        self,
+        bars: list[ResearchBar],
+        index: int,
+        open_position: bool,
+        highest_close: Decimal | None,
+    ) -> str:
         latest = bars[index]
         short = self._average_close(bars, index, SHORT_WINDOW)
-        long = self._average_close(bars, index, LONG_WINDOW)
+        trend_window = TREND_WINDOW if len(bars) > TREND_WINDOW else LONG_WINDOW
+        trend = self._average_close(bars, index, trend_window)
+        regime = self._average_close(bars, index, self._regime_window(bars))
         momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
-        if not open_position and latest.close > short > long and momentum > 0:
+        risk_on = latest.close > regime and short > trend
+        pullback_recovered = latest.close > short and momentum > Decimal("-0.02")
+        if not open_position and risk_on and pullback_recovered:
             return "BUY"
-        if open_position and (latest.close < short or short < long):
+        trailing_stop = (highest_close * TRAILING_STOP_FRACTION) if highest_close else None
+        trend_break = latest.close < trend and momentum < 0
+        stop_break = trailing_stop is not None and latest.close < trailing_stop
+        regime_break = latest.close < regime and short < trend
+        if open_position and (stop_break or trend_break or regime_break):
             return "SELL"
         return "HOLD"
+
+    def _strategy_start_index(self, bars: list[ResearchBar]) -> int:
+        if len(bars) > REGIME_WINDOW + 2:
+            return REGIME_WINDOW
+        if len(bars) > TREND_WINDOW + 2:
+            return TREND_WINDOW
+        return LONG_WINDOW
+
+    def _regime_window(self, bars: list[ResearchBar]) -> int:
+        return REGIME_WINDOW if len(bars) > REGIME_WINDOW + 2 else LONG_WINDOW
 
     @staticmethod
     def _average_close(bars: list[ResearchBar], index: int, window: int) -> Decimal:
@@ -742,7 +782,7 @@ class DailyResearchService:
         momentum_score = min(Decimal("100"), max(Decimal("0"), momentum * Decimal("500") + 50))
         risk_score = Decimal("100") - min(Decimal("100"), abs(momentum) * Decimal("200"))
         return (
-            AgentScore("Trend Agent", trend_score, confidence, "SMA20 versus SMA50 trend slope."),
+            AgentScore("Trend Agent", trend_score, confidence, "SMA20 versus regime trend slope."),
             AgentScore(
                 "Momentum Agent", momentum_score, confidence, "20-day close-to-close momentum."
             ),
@@ -751,12 +791,15 @@ class DailyResearchService:
 
     def _signal_confidence(self, bars: list[ResearchBar], index: int) -> Decimal:
         short = self._average_close(bars, index, SHORT_WINDOW)
-        long = self._average_close(bars, index, LONG_WINDOW)
-        return min(Decimal("0.95"), max(Decimal("0.10"), abs(short / long - 1) * 10))
+        long = self._average_close(bars, index, self._regime_window(bars))
+        return min(
+            Decimal("0.95"),
+            max(Decimal("0.10"), abs(short / long - 1) * 8 + Decimal("0.15")),
+        )
 
     def _market_regime(self, bars: list[ResearchBar], index: int) -> str:
         short = self._average_close(bars, index, SHORT_WINDOW)
-        long = self._average_close(bars, index, LONG_WINDOW)
+        long = self._average_close(bars, index, self._regime_window(bars))
         returns = [
             bars[pos].close / bars[pos - 1].close - 1
             for pos in range(max(1, index - 20), index + 1)

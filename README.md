@@ -152,3 +152,7 @@ Example:
 ```bash
 curl "http://localhost:8000/api/v1/strategies/lab?horizon_years=5&capital=10000"
 ```
+
+## Daily Research Strategy Revision
+
+The daily paper-research strategy was revised from a short 20/50 SMA crossover into a more conservative regime-trend model. It now waits for a risk-on regime, deploys most of each symbol sleeve only after trend recovery, exits on trend/regime breaks or trailing-stop failure, and still preserves the platform rule: signal on close, fill on next open. This is intended to reduce short-term whipsaw and improve the poor profit-factor/win-rate profile observed in the earlier analytics screen.
