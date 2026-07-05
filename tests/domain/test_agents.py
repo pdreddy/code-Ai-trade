@@ -17,6 +17,8 @@ EXPECTED_AGENT_NAMES = (
     "portfolio",
     "mean_reversion",
     "breakout",
+    "rally_base_pattern",
+    "supply_demand",
     "support_resistance",
     "volume",
     "market_regime",
@@ -81,3 +83,77 @@ def test_breakout_agent_detects_close_above_prior_range() -> None:
     assert vote.agent_name == "breakout"
     assert vote.action is SignalAction.BUY
     assert "prior 20-session high" in vote.reasons[0]
+
+
+def test_rally_base_pattern_agent_detects_rally_base_rally() -> None:
+    bars = _bars(40, slope=Decimal("0.1"))
+    instrument_id = bars[-1].instrument_id
+    start = bars[-1].timestamp + timedelta(days=1)
+    pattern_closes = (
+        Decimal("100"),
+        Decimal("102"),
+        Decimal("104"),
+        Decimal("104.1"),
+        Decimal("103.9"),
+        Decimal("104.2"),
+        Decimal("105"),
+        Decimal("107"),
+        Decimal("109"),
+    )
+    pattern = tuple(
+        Bar(
+            instrument_id=instrument_id,
+            timestamp=start + timedelta(days=index),
+            open=Price(close - Decimal("0.4")),
+            high=Price(close + Decimal("0.5")),
+            low=Price(close - Decimal("0.5")),
+            close=Price(close),
+            volume=1_200_000,
+        )
+        for index, close in enumerate(pattern_closes)
+    )
+    request = _request(bars + pattern)
+    pattern_agent = create_default_agents()[7]
+
+    vote = pattern_agent.evaluate(request)
+
+    assert vote.agent_name == "rally_base_pattern"
+    assert vote.action is SignalAction.BUY
+    assert "rally-base-rally" in vote.reasons[0]
+
+
+def test_supply_demand_agent_detects_demand_retest() -> None:
+    bars = _bars(30, slope=Decimal("0.1"))
+    instrument_id = bars[-1].instrument_id
+    start = bars[-1].timestamp + timedelta(days=1)
+    prices = (
+        Decimal("110"),
+        Decimal("110.2"),
+        Decimal("109.9"),
+        Decimal("113"),
+        Decimal("116"),
+        Decimal("119"),
+        Decimal("116"),
+        Decimal("113"),
+        Decimal("110.3"),
+    )
+    demand_sequence = tuple(
+        Bar(
+            instrument_id=instrument_id,
+            timestamp=start + timedelta(days=index),
+            open=Price(close - Decimal("0.2")),
+            high=Price(close + Decimal("0.4")),
+            low=Price(close - Decimal("0.4")),
+            close=Price(close),
+            volume=1_500_000,
+        )
+        for index, close in enumerate(prices)
+    )
+    request = _request(bars + demand_sequence)
+    supply_demand_agent = create_default_agents()[8]
+
+    vote = supply_demand_agent.evaluate(request)
+
+    assert vote.agent_name == "supply_demand"
+    assert vote.action is SignalAction.BUY
+    assert "demand zone" in vote.reasons[0]

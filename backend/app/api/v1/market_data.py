@@ -6,8 +6,10 @@ engine over that real data. No synthetic prices or signals are generated; when t
 provider is unavailable the endpoints surface an honest upstream error.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from functools import lru_cache
 from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -41,16 +43,35 @@ router = APIRouter(prefix="/market-data", tags=["market-data"])
 _INSTRUMENT_NAMESPACE = uuid5(NAMESPACE_URL, "ai-quant-platform/instrument")
 
 
+@dataclass(frozen=True)
+class _MarketDataProviderSettingsSnapshot:
+    market_data_provider: str
+
+
+@lru_cache
+def _cached_market_data_service(provider_name: str, cache_ttl_seconds: int) -> MarketDataService:
+    provider_settings = _MarketDataProviderSettingsSnapshot(market_data_provider=provider_name)
+    return MarketDataService(
+        create_market_data_provider(provider_settings),
+        cache_ttl_seconds=cache_ttl_seconds,
+    )
+
+
 def get_market_data_service(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> MarketDataService:
-    """Provide a market-data service bound to the configured provider.
+    """Provide a cached market-data service bound to the configured provider.
 
-    Exposed as a dependency so tests can override it with an in-memory provider
-    instead of reaching the live upstream data source.
+    Reusing the service keeps its in-memory history cache warm across requests,
+    reducing duplicate upstream calls when dashboards request history, signals,
+    backtests, and strategy screens for the same symbol/range. Exposed as a
+    dependency so tests can override it with an in-memory provider instead of
+    reaching the live upstream data source.
     """
 
-    return MarketDataService(create_market_data_provider(settings))
+    return _cached_market_data_service(
+        settings.market_data_provider, settings.market_data_cache_ttl_seconds
+    )
 
 
 class BarResponse(BaseModel):
@@ -446,9 +467,7 @@ def _backtest_response(
     latest_decision: MasterDecision | None,
 ) -> BacktestResponse:
     realized = [
-        trade.trade.realized_pnl
-        for trade in result.trades
-        if trade.trade.realized_pnl is not None
+        trade.trade.realized_pnl for trade in result.trades if trade.trade.realized_pnl is not None
     ]
     winning = sum(1 for pnl in realized if pnl > Decimal("0"))
     losing = sum(1 for pnl in realized if pnl < Decimal("0"))

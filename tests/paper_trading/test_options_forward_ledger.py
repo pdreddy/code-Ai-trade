@@ -1,10 +1,15 @@
 import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 from backend.app.application.market_data import MarketDataService
 from backend.app.application.options_backtesting import OptionsStyle
-from backend.app.application.options_forward_ledger import OptionsForwardLedgerService
+from backend.app.application.options_forward_ledger import (
+    OpenLedgerPosition,
+    OptionsForwardLedgerService,
+)
+from backend.app.application.options_pricing import OptionSide
 from backend.app.domain.entities import Bar
 from backend.app.domain.options import OptionChain, OptionContract, OptionType
 from backend.app.domain.providers import (
@@ -172,11 +177,6 @@ def test_mark_open_positions_reports_none_when_chain_unavailable() -> None:
     ledger = _ledger(None, _bullish_closes())
     ledger.ensure_symbol("TEST", INITIAL_CASH)
     # Manually seed an open position since the chain is unavailable for opening.
-    from uuid import uuid4
-
-    from backend.app.application.options_forward_ledger import OpenLedgerPosition
-    from backend.app.application.options_pricing import OptionSide
-
     position = OpenLedgerPosition(
         id=uuid4(),
         symbol="TEST",

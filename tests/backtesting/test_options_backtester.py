@@ -10,6 +10,7 @@ from backend.app.application.options_backtesting import (
     OptionsStyle,
 )
 from backend.app.application.options_pricing import OptionSide
+from backend.app.application.options_strategy_screen import OptionsStrategyScreenService
 from backend.app.domain.entities import Bar
 from backend.app.domain.value_objects import Price
 
@@ -110,3 +111,33 @@ def test_options_backtest_requires_minimum_bars() -> None:
         raise AssertionError("expected DomainValidationError")
     except Exception as exc:  # noqa: BLE001
         assert "at least" in str(exc)
+
+
+def test_options_strategy_screen_ranks_styles_by_winning_metrics() -> None:
+    instrument_id = uuid4()
+    bars = _bars(instrument_id, BAR_COUNT)
+
+    screen = OptionsStrategyScreenService().screen(
+        instrument_id,
+        "SPY",
+        bars,
+        capital=INITIAL_CAPITAL,
+        min_win_rate=Decimal("0"),
+    )
+
+    assert {item.style for item in screen.results} == {OptionsStyle.ZERO_DTE, OptionsStyle.WEEKLY}
+    assert screen.results[0].recommended is True
+    assert [item.recommended for item in screen.results].count(True) == 1
+    assert screen.results == tuple(
+        sorted(
+            screen.results,
+            key=lambda item: (
+                item.meets_threshold,
+                item.result.metrics.win_rate,
+                item.result.metrics.total_return,
+                item.result.metrics.profit_factor,
+                -item.result.metrics.max_drawdown.copy_abs(),
+            ),
+            reverse=True,
+        )
+    )

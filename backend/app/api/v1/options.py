@@ -32,6 +32,11 @@ from backend.app.application.options_research import (
     OptionsResearch,
     OptionsResearchService,
 )
+from backend.app.application.options_strategy_screen import (
+    DEFAULT_MIN_WIN_RATE,
+    OptionsStrategyScreen,
+    OptionsStrategyScreenService,
+)
 from backend.app.application.portfolio_execution import instrument_id
 from backend.app.core.config import Settings, get_settings
 from backend.app.domain.errors import DomainValidationError
@@ -48,6 +53,7 @@ MaxDte = Annotated[int, Query(ge=0, le=45)]
 MAX_RANGE_DAYS = 3660
 BacktestDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
 BacktestCapital = Annotated[Decimal, Query(gt=0)]
+MinWinRate = Annotated[Decimal, Query(ge=0, le=1)]
 
 # Both providers surface upstream failures as one of these; caught together
 # wherever an options fetch can fail regardless of which is configured.
@@ -178,6 +184,33 @@ class OptionsBacktestMetricsResponse(BaseModel):
     profit_factor: Decimal
 
 
+class OptionsStrategyScoreResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    style: str
+    recommended: bool
+    meets_threshold: bool
+    final_equity: Decimal
+    win_rate: Decimal
+    trade_count: int
+    winning_trades: int
+    losing_trades: int
+    total_return: Decimal
+    max_drawdown: Decimal
+    profit_factor: Decimal
+
+
+class OptionsStrategyScreenResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    modeled: bool
+    pricing_note: str
+    min_win_rate: Decimal
+    recommended_style: str | None
+    results: tuple[OptionsStrategyScoreResponse, ...]
+
+
 class OptionsBacktestResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -200,6 +233,39 @@ PRICING_NOTE = (
     "prices, strikes, and expiration mechanics are real; the premium is not a "
     "quoted market price. See the live options chain above for real quotes."
 )
+
+
+@router.get("/{symbol}/strategy-screen", response_model=OptionsStrategyScreenResponse)
+def options_strategy_screen(
+    symbol: SymbolPath,
+    market_data: Annotated[MarketDataService, Depends(get_market_data_service)],
+    days: BacktestDays = 1825,
+    capital: BacktestCapital = Decimal("10000"),
+    min_win_rate: MinWinRate = DEFAULT_MIN_WIN_RATE,
+) -> OptionsStrategyScreenResponse:
+    """Rank 0DTE versus weekly modeled options strategies by winning metrics."""
+
+    today = datetime.now(UTC).date()
+    request = HistoricalMarketDataRequest(
+        instrument_id=instrument_id(symbol),
+        symbol=symbol.upper(),
+        start=today - timedelta(days=days),
+        end=today + timedelta(days=1),
+    )
+    try:
+        bars = market_data.fetch_daily_history(request).bars
+        screen = OptionsStrategyScreenService().screen(
+            request.instrument_id,
+            request.symbol,
+            bars,
+            capital=capital,
+            min_win_rate=min_win_rate,
+        )
+    except YahooFinanceProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except DomainValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _strategy_screen_response(screen)
 
 
 @router.get("/{symbol}/backtest", response_model=OptionsBacktestResponse)
@@ -233,6 +299,33 @@ def options_backtest(
     except DomainValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _backtest_response(result)
+
+
+def _strategy_screen_response(screen: OptionsStrategyScreen) -> OptionsStrategyScreenResponse:
+    recommended = next((item.style.value for item in screen.results if item.recommended), None)
+    return OptionsStrategyScreenResponse(
+        symbol=screen.symbol,
+        modeled=True,
+        pricing_note=PRICING_NOTE,
+        min_win_rate=screen.min_win_rate,
+        recommended_style=recommended,
+        results=tuple(
+            OptionsStrategyScoreResponse(
+                style=item.style.value,
+                recommended=item.recommended,
+                meets_threshold=item.meets_threshold,
+                final_equity=item.result.final_equity,
+                win_rate=item.result.metrics.win_rate,
+                trade_count=item.result.metrics.trade_count,
+                winning_trades=item.result.metrics.winning_trades,
+                losing_trades=item.result.metrics.losing_trades,
+                total_return=item.result.metrics.total_return,
+                max_drawdown=item.result.metrics.max_drawdown,
+                profit_factor=item.result.metrics.profit_factor,
+            )
+            for item in screen.results
+        ),
+    )
 
 
 def _trade_response(trade: OptionsTrade) -> OptionsTradeResponse:

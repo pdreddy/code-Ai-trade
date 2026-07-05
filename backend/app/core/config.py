@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     cors_origins: tuple[str, ...] = ("http://localhost:3000",)
     demo_mode: bool = False
     market_data_provider: MarketDataProvider = "yahoo"
+    market_data_cache_ttl_seconds: int = Field(default=60, ge=0, le=3600)
     # Yahoo's undocumented options endpoint blocks server/datacenter IPs far more
     # aggressively than its chart endpoint, so a real alternative (Tradier's free
     # developer sandbox) is available behind the same OptionsProvider contract.
