@@ -115,7 +115,7 @@ The active UI research workspaces call the backend daily report endpoint with `$
 curl "http://localhost:8000/api/v1/research/daily-report?capital=10000"
 ```
 
-The response includes next-session paper candidates, all generated daywise strategy trades for the covered period, portfolio-level equity/return/win-rate metrics, and an underlying-driven unusual-options watch plan. The options watch section is not an options-chain execution engine; it flags where a future real options provider should verify unusual flow before any paper options workflow is enabled.
+The response includes next-session paper candidates, all generated daywise strategy trades for the covered period, portfolio-level equity/return/win-rate metrics, an underlying-driven unusual-options watch plan, and explicit 0DTE CALL/PUT paper intents. The 0DTE rows are not options executions: they use the latest underlying signal to create same-expiration option intent plans while requiring a real options-chain provider for premium, bid/ask liquidity, Greeks, IV, open interest, volume, and fills before any paper options workflow can execute.
 
 ## Institutional Research Additions
 
@@ -125,6 +125,7 @@ The daily report now includes additive institutional analytics fields without ch
 - Per-symbol backtest metrics: equity curve, drawdown, exposure, volatility, alpha/beta placeholders derived from available benchmark context, information ratio, tracking error, recovery time, Omega, MAR, and streak statistics.
 - Professional trade journal fields: trade ID, direction, holding period, position size, entry/exit signal, strategy, regime, confidence, risk/reward, stop, target, gross/net PnL, costs, screenshot placeholder, and notes.
 - Portfolio holdings snapshots when positions are open, with weights, risk score, AI score, sector/industry labels, stop, target, holding days, and status.
+- 0DTE options foundation output: CALL/PUT intent, same-session expiration, underlying price, strike, max premium budget, and provider-required execution status so the UI can show options planning without fabricating options-chain data.
 
 The endpoint remains:
 

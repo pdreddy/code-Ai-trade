@@ -184,6 +184,20 @@ class NextDayCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class ZeroDteOptionIntent:
+    symbol: str
+    signal_date: date
+    option_type: str
+    direction: str
+    expiration: date
+    underlying_price: Decimal
+    strike: Decimal
+    max_premium_budget: Decimal
+    status: str
+    rationale: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class OptionsWatchCandidate:
     symbol: str
     signal_date: date
@@ -228,6 +242,7 @@ class DailyResearchReport:
     backtests: tuple[BacktestSummary, ...]
     portfolio: PortfolioSummary
     options_watchlist: tuple[OptionsWatchCandidate, ...]
+    zero_dte_option_intents: tuple[ZeroDteOptionIntent, ...]
 
 
 class DailyResearchService:
@@ -262,6 +277,7 @@ class DailyResearchService:
         backtests: list[BacktestSummary] = []
         candidates: list[NextDayCandidate] = []
         options_watchlist: list[OptionsWatchCandidate] = []
+        zero_dte_intents: list[ZeroDteOptionIntent] = []
         for symbol in normalized_symbols:
             bars = self._fetch_bars(symbol, start, resolved_end)
             if len(bars) <= LONG_WINDOW + 1:
@@ -274,12 +290,16 @@ class DailyResearchService:
             options_candidate = self._options_watch_candidate(symbol, bars, candidates[-1])
             if options_candidate is not None:
                 options_watchlist.append(options_candidate)
+            zero_dte_intents.append(
+                self._zero_dte_option_intent(symbol, bars, candidates[-1], sleeve_capital)
+            )
         return DailyResearchReport(
             generated_at=datetime.now(UTC),
             candidates=tuple(candidates),
             backtests=tuple(backtests),
             portfolio=self._portfolio_summary(starting_capital, backtests),
             options_watchlist=tuple(options_watchlist),
+            zero_dte_option_intents=tuple(zero_dte_intents),
         )
 
     def _backtest(  # noqa: PLR0915
@@ -531,6 +551,44 @@ class DailyResearchService:
             risk_score=risk_score,
             holdings=holdings,
             equity_curve=portfolio_curve,
+        )
+
+
+    def _zero_dte_option_intent(
+        self,
+        symbol: str,
+        bars: list[ResearchBar],
+        candidate: NextDayCandidate,
+        sleeve_capital: Decimal,
+    ) -> ZeroDteOptionIntent:
+        latest = bars[-1]
+        regime = self._average_close(bars, len(bars) - 1, self._regime_window(bars))
+        if candidate.action == "BUY" or latest.close >= regime:
+            option_type = "CALL"
+            strike = latest.close.quantize(Decimal("1"), rounding=ROUND_DOWN)
+            direction = "LONG_CALL"
+        else:
+            option_type = "PUT"
+            strike = latest.close.quantize(Decimal("1"), rounding=ROUND_DOWN)
+            direction = "LONG_PUT"
+        status = "REQUIRES_OPTIONS_PROVIDER_NO_EXECUTION"
+        return ZeroDteOptionIntent(
+            symbol=symbol,
+            signal_date=latest.session,
+            option_type=option_type,
+            direction=direction,
+            expiration=latest.session,
+            underlying_price=latest.close,
+            strike=strike,
+            max_premium_budget=sleeve_capital * Decimal("0.01"),
+            status=status,
+            rationale=(
+                "0DTE paper intent only; no option chain provider is configured.",
+                "Premium, bid/ask, IV, Greeks, OI, volume, and fill quality "
+                "must be verified before execution.",
+                f"underlying_signal={candidate.action}",
+                "No live or paper option order is submitted by this report.",
+            ),
         )
 
     def _options_watch_candidate(

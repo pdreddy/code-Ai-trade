@@ -36,3 +36,6 @@ def test_daily_research_report_contains_next_day_candidates_and_backtests() -> N
     assert report.backtests[0].trade_count >= 1
     assert report.backtests[0].starting_capital == Decimal("10000")
     assert report.backtests[0].ending_equity > Decimal("10000")
+    assert report.zero_dte_option_intents[0].symbol == "SPY"
+    assert report.zero_dte_option_intents[0].option_type in {"CALL", "PUT"}
+    assert report.zero_dte_option_intents[0].status == "REQUIRES_OPTIONS_PROVIDER_NO_EXECUTION"

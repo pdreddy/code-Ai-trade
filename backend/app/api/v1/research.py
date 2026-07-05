@@ -18,6 +18,7 @@ from backend.app.application.daily_research import (
     NextDayCandidate,
     OptionsWatchCandidate,
     PortfolioSummary,
+    ZeroDteOptionIntent,
 )
 
 router = APIRouter(prefix="/research", tags=["research"])
@@ -219,6 +220,21 @@ class OptionsWatchResponse(BaseModel):
     rationale: tuple[str, ...]
 
 
+class ZeroDteOptionIntentResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    signal_date: date
+    option_type: str
+    direction: str
+    expiration: date
+    underlying_price: Decimal
+    strike: Decimal
+    max_premium_budget: Decimal
+    status: str
+    rationale: tuple[str, ...]
+
+
 class DailyResearchReportResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -227,6 +243,7 @@ class DailyResearchReportResponse(BaseModel):
     backtests: tuple[BacktestResponse, ...]
     portfolio: PortfolioResponse
     options_watchlist: tuple[OptionsWatchResponse, ...]
+    zero_dte_option_intents: tuple[ZeroDteOptionIntentResponse, ...]
 
 
 @router.get("/daily-report", response_model=DailyResearchReportResponse)
@@ -249,6 +266,9 @@ def daily_report(
         backtests=tuple(_backtest(backtest) for backtest in report.backtests),
         portfolio=_portfolio(report.portfolio),
         options_watchlist=tuple(_options_watch(item) for item in report.options_watchlist),
+        zero_dte_option_intents=tuple(
+            _zero_dte_option_intent(item) for item in report.zero_dte_option_intents
+        ),
     )
 
 
@@ -392,6 +412,21 @@ def _options_watch(candidate: OptionsWatchCandidate) -> OptionsWatchResponse:
         underlying_last_close=_round(candidate.underlying_last_close),
         suggested_underlying_notional=_round(candidate.suggested_underlying_notional),
         rationale=candidate.rationale,
+    )
+
+
+def _zero_dte_option_intent(intent: ZeroDteOptionIntent) -> ZeroDteOptionIntentResponse:
+    return ZeroDteOptionIntentResponse(
+        symbol=intent.symbol,
+        signal_date=intent.signal_date,
+        option_type=intent.option_type,
+        direction=intent.direction,
+        expiration=intent.expiration,
+        underlying_price=_round(intent.underlying_price),
+        strike=_round(intent.strike),
+        max_premium_budget=_round(intent.max_premium_budget),
+        status=intent.status,
+        rationale=intent.rationale,
     )
 
 

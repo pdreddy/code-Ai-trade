@@ -56,3 +56,9 @@ def test_daily_research_endpoint_returns_institutional_research_contract(
     assert payload["portfolio"]["cash"] is not None
     assert payload["portfolio"]["equity_curve"]
     assert "options_watchlist" in payload
+    assert payload["zero_dte_option_intents"]
+    assert payload["zero_dte_option_intents"][0]["option_type"] in {"CALL", "PUT"}
+    assert (
+        payload["zero_dte_option_intents"][0]["status"]
+        == "REQUIRES_OPTIONS_PROVIDER_NO_EXECUTION"
+    )
