@@ -257,6 +257,107 @@ class VolumeAgent(BaseDeterministicAgent):
         return _vote(SignalAction.HOLD, Decimal("0.2"), "latest volume is not a confirming outlier")
 
 
+class RallyBasePatternAgent(BaseDeterministicAgent):
+    name = "rally_base_pattern"
+
+    def _evaluate(self, request: AgentRequest) -> AgentEvaluation:
+        if len(request.bars) < 9:
+            return self._insufficient_history(9, len(request.bars))
+        first = request.bars[-9:-6]
+        base = request.bars[-6:-3]
+        last = request.bars[-3:]
+        first_move = _segment_return(first)
+        last_move = _segment_return(last)
+        base_high = max(bar.high.value for bar in base)
+        base_low = min(bar.low.value for bar in base)
+        latest_close = request.bars[-1].close.value
+        base_tight = _zone_width(base_low, base_high) <= Decimal("0.035")
+        impulse = Decimal("0.012")
+
+        if base_tight and first_move > impulse and last_move > impulse and latest_close > base_high:
+            return _vote(
+                SignalAction.BUY,
+                _bounded((first_move + last_move) * Decimal("10")),
+                "rally-base-rally continuation broke above a tight base",
+            )
+        if (
+            base_tight
+            and first_move < -impulse
+            and last_move > impulse
+            and latest_close > base_high
+        ):
+            return _vote(
+                SignalAction.BUY,
+                _bounded((last_move + first_move.copy_abs()) * Decimal("8")),
+                "drop-base-rally demand reversal broke above its base",
+            )
+        if (
+            base_tight
+            and first_move < -impulse
+            and last_move < -impulse
+            and latest_close < base_low
+        ):
+            return _vote(
+                SignalAction.SELL,
+                _bounded((first_move.copy_abs() + last_move.copy_abs()) * Decimal("10")),
+                "drop-base-drop continuation broke below a tight base",
+            )
+        if base_tight and first_move > impulse and last_move < -impulse and latest_close < base_low:
+            return _vote(
+                SignalAction.SELL,
+                _bounded((first_move + last_move.copy_abs()) * Decimal("8")),
+                "rally-base-drop supply reversal broke below its base",
+            )
+        return _vote(
+            SignalAction.HOLD, Decimal("0.2"), "no fresh rally/drop-base pattern confirmed"
+        )
+
+
+class SupplyDemandAgent(BaseDeterministicAgent):
+    name = "supply_demand"
+
+    def _evaluate(self, request: AgentRequest) -> AgentEvaluation:
+        if len(request.bars) < 24:
+            return self._insufficient_history(24, len(request.bars))
+        latest_close = request.bars[-1].close.value
+        demand_zones: list[tuple[Decimal, Decimal, Decimal]] = []
+        supply_zones: list[tuple[Decimal, Decimal, Decimal]] = []
+        window = request.bars[-80:]
+        for index in range(3, len(window) - 3):
+            base = window[index : index + 3]
+            departure = window[index + 3 : index + 6]
+            base_low = min(bar.low.value for bar in base)
+            base_high = max(bar.high.value for bar in base)
+            if _zone_width(base_low, base_high) > Decimal("0.03"):
+                continue
+            departure_return = _segment_return(departure)
+            strength = _bounded(departure_return.copy_abs() * Decimal("8"))
+            if departure_return > Decimal("0.015"):
+                demand_zones.append((base_low, base_high, strength))
+            elif departure_return < Decimal("-0.015"):
+                supply_zones.append((base_low, base_high, strength))
+
+        demand = _nearest_zone(latest_close, demand_zones)
+        if demand is not None:
+            low, high, strength = demand
+            return _vote(
+                SignalAction.BUY,
+                max(strength, Decimal("0.45")),
+                f"price is retesting demand zone {low:.2f}-{high:.2f}",
+            )
+        supply = _nearest_zone(latest_close, supply_zones)
+        if supply is not None:
+            low, high, strength = supply
+            return _vote(
+                SignalAction.SELL,
+                max(strength, Decimal("0.45")),
+                f"price is retesting supply zone {low:.2f}-{high:.2f}",
+            )
+        return _vote(
+            SignalAction.HOLD, Decimal("0.2"), "price is not retesting a fresh supply/demand zone"
+        )
+
+
 class MarketRegimeAgent(BaseDeterministicAgent):
     name = "market_regime"
 
@@ -276,6 +377,35 @@ class MarketRegimeAgent(BaseDeterministicAgent):
                 "50-day average is below 200-day regime average",
             )
         return _vote(SignalAction.HOLD, Decimal("0.1"), "market regime averages are flat")
+
+
+def _segment_return(bars: Sequence[Bar]) -> Decimal:
+    first_open = bars[0].open.value
+    if first_open <= DECIMAL_ZERO:
+        return DECIMAL_ZERO
+    return bars[-1].close.value / first_open - DECIMAL_ONE
+
+
+def _zone_width(low: Decimal, high: Decimal) -> Decimal:
+    midpoint = (low + high) / Decimal("2")
+    if midpoint <= DECIMAL_ZERO:
+        return DECIMAL_ONE
+    return (high - low) / midpoint
+
+
+def _nearest_zone(
+    price: Decimal, zones: Sequence[tuple[Decimal, Decimal, Decimal]]
+) -> tuple[Decimal, Decimal, Decimal] | None:
+    if price <= DECIMAL_ZERO:
+        return None
+    candidates = [
+        zone for zone in zones if zone[0] * Decimal("0.985") <= price <= zone[1] * Decimal("1.015")
+    ]
+    if not candidates:
+        return None
+    return min(
+        candidates, key=lambda zone: min((price - zone[0]).copy_abs(), (price - zone[1]).copy_abs())
+    )
 
 
 def _vote(action: SignalAction, confidence: Decimal, reason: str) -> AgentEvaluation:

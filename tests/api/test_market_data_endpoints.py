@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from backend.app.api.v1.market_data import get_market_data_service  # noqa: E402
 from backend.app.main import create_app  # noqa: E402
 
-AGENT_COUNT = 10
+AGENT_COUNT = 12
 HISTORY_BAR_COUNT = 60
 SIGNAL_BAR_COUNT = 260
 BACKTEST_BAR_COUNT = 400
@@ -46,9 +46,7 @@ class _StubProvider:
         self._bar_count = bar_count
         self._price = price
 
-    def fetch_daily_history(
-        self, request: HistoricalMarketDataRequest
-    ) -> HistoricalMarketData:
+    def fetch_daily_history(self, request: HistoricalMarketDataRequest) -> HistoricalMarketData:
         start = datetime(2016, 1, 1, tzinfo=UTC)
         bars = tuple(
             Bar(
@@ -118,6 +116,8 @@ def test_signals_endpoint_runs_all_agents_and_master_decision() -> None:
         "portfolio",
         "mean_reversion",
         "breakout",
+        "rally_base_pattern",
+        "supply_demand",
         "support_resistance",
         "volume",
         "market_regime",

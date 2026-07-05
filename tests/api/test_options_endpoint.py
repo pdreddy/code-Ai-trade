@@ -138,12 +138,18 @@ class _StubOptionsProvider:
         )
 
 
+def _market_data_service_override() -> MarketDataService:
+    return MarketDataService(_StubMarketProvider())
+
+
+def _options_provider_override() -> _StubOptionsProvider:
+    return _StubOptionsProvider()
+
+
 def _client() -> TestClient:
     app = create_app()
-    app.dependency_overrides[get_market_data_service] = lambda: MarketDataService(
-        _StubMarketProvider()
-    )
-    app.dependency_overrides[get_options_provider] = lambda: _StubOptionsProvider()
+    app.dependency_overrides[get_market_data_service] = _market_data_service_override
+    app.dependency_overrides[get_options_provider] = _options_provider_override
     return TestClient(app)
 
 

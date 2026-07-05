@@ -33,9 +33,7 @@ def _oscillating(index: int) -> Decimal:
 class _StubProvider:
     provider_name = "stub"
 
-    def fetch_daily_history(
-        self, request: HistoricalMarketDataRequest
-    ) -> HistoricalMarketData:
+    def fetch_daily_history(self, request: HistoricalMarketDataRequest) -> HistoricalMarketData:
         start = datetime(2024, 1, 1, tzinfo=UTC)
         bars = tuple(
             Bar(
@@ -66,9 +64,7 @@ class _StubProvider:
 
 def _client() -> TestClient:
     app = create_app()
-    app.dependency_overrides[get_market_data_service] = lambda: MarketDataService(
-        _StubProvider()
-    )
+    app.dependency_overrides[get_market_data_service] = lambda: MarketDataService(_StubProvider())
     return TestClient(app)
 
 
@@ -96,14 +92,32 @@ def test_options_backtest_endpoint_is_labeled_modeled() -> None:
 def test_options_backtest_endpoint_supports_weekly_style() -> None:
     client = _client()
 
-    response = client.get(
-        "/api/v1/options/SPY/backtest", params={"style": "weekly", "days": 1200}
-    )
+    response = client.get("/api/v1/options/SPY/backtest", params={"style": "weekly", "days": 1200})
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["style"] == "weekly"
     assert payload["metrics"]["trade_count"] > 0
+
+
+def test_options_strategy_screen_endpoint_recommends_best_style() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/options/SPY/strategy-screen",
+        params={"days": 1200, "capital": "10000", "min_win_rate": "0"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["symbol"] == "SPY"
+    assert payload["modeled"] is True
+    assert payload["recommended_style"] in {"zero_dte", "weekly"}
+    assert {result["style"] for result in payload["results"]} == {"zero_dte", "weekly"}
+    assert sum(1 for result in payload["results"] if result["recommended"]) == 1
+    assert payload["results"][0]["recommended"] is True
+    win_rates = [Decimal(result["win_rate"]) for result in payload["results"]]
+    assert win_rates == sorted(win_rates, reverse=True)
 
 
 def test_options_portfolio_execute_allocates_capital_across_universe() -> None:

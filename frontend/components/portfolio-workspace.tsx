@@ -300,7 +300,7 @@ export function PortfolioMonitor() {
         eyebrow="Portfolio"
         onWindowChange={setWindowDays}
         state={state}
-        title="Portfolio And Risk Monitor"
+        title="Personal Portfolio And Risk Monitor"
         windowDays={windowDays}
       />
 
