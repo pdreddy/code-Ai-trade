@@ -127,3 +127,93 @@ def platform_readiness_gaps() -> tuple[ReadinessGapResponse, ...]:
             ),
         ),
     )
+
+
+class ProviderCandidateResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    provider: str
+    category: str
+    best_for: str
+    capabilities: tuple[str, ...]
+    integration_priority: str
+    official_url: str
+
+
+@router.get(
+    "/platform/data-provider-candidates",
+    response_model=tuple[ProviderCandidateResponse, ...],
+)
+def data_provider_candidates() -> tuple[ProviderCandidateResponse, ...]:
+    """Return vetted alternative data feeds for Yahoo limitations."""
+
+    return (
+        ProviderCandidateResponse(
+            provider="Databento",
+            category="institutional_market_data",
+            best_for="OPRA/equity options, equities, historical and real-time feeds",
+            capabilities=("equities", "equity_options", "OPRA", "historical", "real_time"),
+            integration_priority="primary_institutional_candidate",
+            official_url="https://databento.com/options",
+        ),
+        ProviderCandidateResponse(
+            provider="Tradier",
+            category="brokerage_and_options_chain",
+            best_for=(
+                "option chains, strikes, expirations, IV/Greeks, "
+                "and future paper/live routing"
+            ),
+            capabilities=("options_chains", "strikes", "expirations", "greeks", "brokerage"),
+            integration_priority="fastest_options_brokerage_candidate",
+            official_url="https://docs.tradier.com/reference/brokerage-api-markets-get-options-chains",
+        ),
+        ProviderCandidateResponse(
+            provider="Alpaca",
+            category="market_data_and_brokerage",
+            best_for="equities, options market data, and future paper brokerage integration",
+            capabilities=("equities", "options", "historical", "real_time", "brokerage"),
+            integration_priority="developer_friendly_candidate",
+            official_url="https://docs.alpaca.markets/us/docs/historical-option-data",
+        ),
+        ProviderCandidateResponse(
+            provider="Intrinio",
+            category="options_analytics",
+            best_for="realtime option chains, NBBO, trades, Greeks, IV, and unusual activity",
+            capabilities=(
+                "options_chains",
+                "NBBO",
+                "greeks",
+                "implied_volatility",
+                "unusual_activity",
+            ),
+            integration_priority="options_analytics_candidate",
+            official_url="https://docs.intrinio.com/documentation/web_api/get_options_chain_realtime_v2",
+        ),
+        ProviderCandidateResponse(
+            provider="Massive / Polygon",
+            category="multi_asset_market_data",
+            best_for="stocks, options trades/quotes/candles, Greeks/IV, news partner feeds",
+            capabilities=("stocks", "options", "quotes", "candles", "greeks", "news"),
+            integration_priority="broad_market_data_candidate",
+            official_url="https://massive.com/options",
+        ),
+        ProviderCandidateResponse(
+            provider="Benzinga",
+            category="news_and_catalysts",
+            best_for=(
+                "market-moving news, real-time headlines, catalysts, "
+                "and ticker-tagged stories"
+            ),
+            capabilities=("news", "headlines", "catalysts", "ticker_tags"),
+            integration_priority="news_provider_candidate",
+            official_url="https://docs.benzinga.com/introduction/welcome",
+        ),
+        ProviderCandidateResponse(
+            provider="Finnhub",
+            category="news_fundamentals_sentiment",
+            best_for="company news, sentiment, fundamentals, and alternative data enrichment",
+            capabilities=("company_news", "sentiment", "fundamentals", "alternative_data"),
+            integration_priority="sentiment_and_fundamentals_candidate",
+            official_url="https://finnhub.io/docs/api/company-news",
+        ),
+    )

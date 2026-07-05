@@ -107,6 +107,15 @@ docker compose up -d --build frontend
 
 The script writes `frontend/lib/generated-market-snapshot.ts`, which is intentionally empty until regenerated from a real provider response.
 
+
+## Alternative Data Feeds
+
+Yahoo Finance remains the fallback OHLCV provider. For daily 0DTE options, small/mid-cap option eligibility, news catalysts, and unusual options flow, use the provider roadmap in `docs/data-provider-roadmap.md`. The backend also exposes vetted candidates at:
+
+```bash
+curl "http://localhost:8000/api/v1/platform/data-provider-candidates"
+```
+
 ## $10,000 Daily Paper Research Report
 
 The active UI research workspaces call the backend daily report endpoint with `$10,000` of paper capital and real five-year Yahoo Finance OHLCV bars. The UI now accepts comma-separated symbols, so you can run the report for ETFs, large caps, mid caps, small caps, or event/news tickers when Yahoo provides enough OHLCV history. The report simulates entries and exits with the platform rule `signal on close, fill on next open`; it does not send live broker orders.
