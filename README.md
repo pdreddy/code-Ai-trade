@@ -109,13 +109,13 @@ The script writes `frontend/lib/generated-market-snapshot.ts`, which is intentio
 
 ## $10,000 Daily Paper Research Report
 
-The active UI research workspaces call the backend daily report endpoint with `$10,000` of paper capital and real five-year Yahoo Finance OHLCV bars. The report simulates entries and exits with the platform rule `signal on close, fill on next open`; it does not send live broker orders.
+The active UI research workspaces call the backend daily report endpoint with `$10,000` of paper capital and real five-year Yahoo Finance OHLCV bars. The UI now accepts comma-separated symbols, so you can run the report for ETFs, large caps, mid caps, small caps, or event/news tickers when Yahoo provides enough OHLCV history. The report simulates entries and exits with the platform rule `signal on close, fill on next open`; it does not send live broker orders.
 
 ```bash
 curl "http://localhost:8000/api/v1/research/daily-report?capital=10000"
 ```
 
-The response includes next-session paper candidates, all generated daywise strategy trades for the covered period, portfolio-level equity/return/win-rate metrics, an underlying-driven unusual-options watch plan, and explicit 0DTE CALL/PUT paper intents. The 0DTE rows are not options executions: they use the latest underlying signal to create same-expiration option intent plans while requiring a real options-chain provider for premium, bid/ask liquidity, Greeks, IV, open interest, volume, and fills before any paper options workflow can execute.
+The response includes next-session paper candidates, all generated daywise strategy trades for the covered period, portfolio-level equity/return/win-rate metrics, an underlying-driven unusual-options watch plan, and explicit 0DTE CALL/PUT paper intents for the requested symbols. The 0DTE rows are not options executions: they use the latest underlying signal to create same-expiration option intent plans while requiring a real options-chain provider for premium, bid/ask liquidity, Greeks, IV, open interest, volume, and fills before any paper options workflow can execute.
 
 ## Institutional Research Additions
 

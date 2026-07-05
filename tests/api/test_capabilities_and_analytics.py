@@ -84,6 +84,6 @@ def test_platform_readiness_gaps_identify_blockers() -> None:
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     areas = {item["area"] for item in payload}
-    assert "0DTE options execution" in areas
+    assert "Daily 0DTE options execution" in areas
     assert "Persistent paper-trading ledger" in areas
     assert any(item["severity"] == "critical" for item in payload)

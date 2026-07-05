@@ -61,16 +61,16 @@ def platform_readiness_gaps() -> tuple[ReadinessGapResponse, ...]:
 
     return (
         ReadinessGapResponse(
-            area="0DTE options execution",
+            area="Daily 0DTE options execution",
             status="blocked_by_provider",
             severity="critical",
             impact=(
-                "CALL/PUT rows are research intents only; premiums, Greeks, liquidity, "
-                "and fills are not available."
+                "CALL/PUT rows are research intents only; small/mid-cap daily expirations, "
+                "premiums, Greeks, liquidity, and fills must be confirmed by provider."
             ),
             required_next_step=(
                 "Add a real options-chain provider with bid/ask, IV, Greeks, volume, "
-                "open interest, and expiration calendars before enabling paper options fills."
+                "open interest, and expiration calendars before enabling daily 0DTE fills."
             ),
         ),
         ReadinessGapResponse(
@@ -87,12 +87,12 @@ def platform_readiness_gaps() -> tuple[ReadinessGapResponse, ...]:
             ),
         ),
         ReadinessGapResponse(
-            area="News, fundamentals, and institutional flow",
+            area="News, unusual moves, fundamentals, and institutional flow",
             status="provider_missing",
             severity="high",
             impact=(
                 "AI explanations are technical-first and cannot yet validate catalysts, "
-                "earnings, options flow, or institutional accumulation."
+                "earnings, unusual price/volume changes, options flow, or accumulation."
             ),
             required_next_step=(
                 "Add configured providers for news, fundamentals, filings, options flow, "

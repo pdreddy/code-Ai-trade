@@ -18,14 +18,20 @@ type View = "signals" | "backtests" | "paper-trades" | "analytics" | "portfolio"
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const capital = 10000;
+const defaultSymbols = "SPY,QQQ,IWM,DIA";
 
 export function DailyResearchReport({ view }: Readonly<{ view: View }>) {
   const [state, setState] = useState<ReportState>({ status: "loading", report: null, error: null });
+  const [symbolText, setSymbolText] = useState(defaultSymbols);
+  const [appliedSymbols, setAppliedSymbols] = useState(defaultSymbols);
+
   useEffect(() => {
     let cancelled = false;
     async function loadReport() {
       try {
-        const response = await fetch(`${apiBaseUrl}/research/daily-report?capital=${capital}`, { headers: { Accept: "application/json" } });
+        const params = new URLSearchParams({ capital: String(capital) });
+        parseSymbols(appliedSymbols).forEach((symbol) => params.append("symbols", symbol));
+        const response = await fetch(`${apiBaseUrl}/research/daily-report?${params.toString()}`, { headers: { Accept: "application/json" } });
         if (!response.ok) throw new Error(`research report failed with HTTP ${response.status}`);
         const report = (await response.json()) as ResearchReport;
         if (!cancelled) setState({ status: "ready", report, error: null });
@@ -35,17 +41,27 @@ export function DailyResearchReport({ view }: Readonly<{ view: View }>) {
     }
     void loadReport();
     return () => { cancelled = true; };
-  }, []);
+  }, [appliedSymbols]);
 
-  if (state.status === "loading") return <p className="text-sm text-terminal-muted">Loading institutional research report with $10,000 paper capital...</p>;
-  if (state.status === "error") return <p className="text-sm text-terminal-muted">Provider unavailable: {state.error}. No synthetic trades are shown.</p>;
-  if (view === "signals") return <CandidateGrid candidates={state.report.candidates} optionsWatchlist={state.report.options_watchlist} zeroDteIntents={state.report.zero_dte_option_intents} generatedAt={state.report.generated_at} />;
-  if (view === "paper-trades") return <TradeJournal backtests={state.report.backtests} portfolio={state.report.portfolio} zeroDteIntents={state.report.zero_dte_option_intents} />;
-  if (view === "analytics") return <AnalyticsGrid report={state.report} />;
-  if (view === "portfolio") return <PortfolioGrid report={state.report} />;
-  if (view === "dashboard") return <DashboardResearch report={state.report} />;
-  if (view === "stocks") return <StockResearch report={state.report} />;
-  return <BacktestGrid backtests={state.report.backtests} portfolio={state.report.portfolio} />;
+  const controls = <SymbolControls symbolText={symbolText} setSymbolText={setSymbolText} apply={() => setAppliedSymbols(parseSymbols(symbolText).join(","))} />;
+
+  if (state.status === "loading") return <div className="space-y-4">{controls}<p className="text-sm text-terminal-muted">Loading institutional research report with $10,000 paper capital...</p></div>;
+  if (state.status === "error") return <div className="space-y-4">{controls}<p className="text-sm text-terminal-muted">Provider unavailable: {state.error}. No synthetic trades are shown.</p></div>;
+  if (view === "signals") return <div className="space-y-4">{controls}<CandidateGrid candidates={state.report.candidates} optionsWatchlist={state.report.options_watchlist} zeroDteIntents={state.report.zero_dte_option_intents} generatedAt={state.report.generated_at} /></div>;
+  if (view === "paper-trades") return <div className="space-y-4">{controls}<TradeJournal backtests={state.report.backtests} portfolio={state.report.portfolio} zeroDteIntents={state.report.zero_dte_option_intents} /></div>;
+  if (view === "analytics") return <div className="space-y-4">{controls}<AnalyticsGrid report={state.report} /></div>;
+  if (view === "portfolio") return <div className="space-y-4">{controls}<PortfolioGrid report={state.report} /></div>;
+  if (view === "dashboard") return <div className="space-y-4">{controls}<DashboardResearch report={state.report} /></div>;
+  if (view === "stocks") return <div className="space-y-4">{controls}<StockResearch report={state.report} /></div>;
+  return <div className="space-y-4">{controls}<BacktestGrid backtests={state.report.backtests} portfolio={state.report.portfolio} /></div>;
+}
+
+function SymbolControls({ symbolText, setSymbolText, apply }: Readonly<{ symbolText: string; setSymbolText: (value: string) => void; apply: () => void }>) {
+  return <div className="rounded-xl border border-terminal-border bg-black/20 p-4"><label className="text-xs uppercase tracking-[0.2em] text-terminal-muted" htmlFor="research-symbols">Research universe</label><div className="mt-3 flex flex-col gap-3 md:flex-row"><input className="min-h-11 flex-1 rounded-lg border border-terminal-border bg-black/30 px-3 text-sm text-terminal-text outline-none focus:border-terminal-accent" id="research-symbols" onChange={(event) => setSymbolText(event.target.value)} placeholder="SPY,QQQ,IWM,DIA,AAPL,NVDA,TSLA" value={symbolText} /><button className="rounded-lg border border-terminal-accent px-4 py-2 text-sm font-medium text-terminal-accent" onClick={apply} type="button">Run real-data report</button></div><p className="mt-2 text-xs text-terminal-muted">Enter ETFs, large caps, mid caps, small caps, or event/news tickers. Yahoo must provide OHLCV history; 0DTE CALL/PUT execution still requires a real options chain, news, and unusual-flow provider before fills can be simulated.</p></div>;
+}
+
+function parseSymbols(value: string) {
+  return value.split(",").map((symbol) => symbol.trim().toUpperCase()).filter(Boolean).slice(0, 12);
 }
 
 function CandidateGrid({ candidates, generatedAt, optionsWatchlist, zeroDteIntents }: Readonly<{ candidates: Candidate[]; generatedAt: string; optionsWatchlist: OptionsWatch[]; zeroDteIntents: ZeroDteOptionIntent[] }>) {
