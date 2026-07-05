@@ -12,6 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["local", "test", "staging", "production"]
 MarketDataProvider = Literal["yahoo"]
+OptionsDataProvider = Literal["disabled", "databento", "tradier", "alpaca", "intrinio", "massive"]
+NewsDataProvider = Literal["disabled", "benzinga", "finnhub"]
 
 
 class Settings(BaseSettings):
@@ -31,6 +33,8 @@ class Settings(BaseSettings):
     cors_origins: tuple[str, ...] = ("http://localhost:3000",)
     demo_mode: bool = False
     market_data_provider: MarketDataProvider = "yahoo"
+    options_data_provider: OptionsDataProvider = "disabled"
+    news_data_provider: NewsDataProvider = "disabled"
     database_url: PostgresDsn = Field(
         default="postgresql+psycopg://quant:quant@localhost:5432/quant"
     )
