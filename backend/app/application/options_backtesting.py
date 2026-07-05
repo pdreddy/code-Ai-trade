@@ -51,6 +51,10 @@ PREMIUM_BUDGET_FRACTION = Decimal("0.20")
 CONTRACT_MULTIPLIER = Decimal("100")
 COMMISSION_PER_CONTRACT = Decimal("0.65")
 MIN_TRADABLE_PREMIUM = Decimal("0.05")
+ZERO_DTE_MIN_CONFIDENCE = Decimal("0.38")
+ZERO_DTE_MAX_RISK_SCORE = Decimal("0.63")
+ZERO_DTE_PREMIUM_BUDGET_FRACTION = Decimal("0.05")
+ZERO_DTE_MAX_CONTRACTS = 10
 MIN_BAR_COUNT = 30
 
 
@@ -117,6 +121,8 @@ class _OpenPosition:
     entry_premium: Decimal
     contracts: int
     entry_reason: str
+    stop_underlying: Decimal | None
+    take_profit_underlying: Decimal | None
 
 
 def _signal_flips(option_side: OptionSide, action: SignalAction) -> bool:
@@ -235,6 +241,8 @@ class OptionsBacktester:
     ) -> tuple[Decimal, _OpenPosition | None]:
         entry_date = entry_bar.timestamp.date()
         expiration = self._expiration_for(entry_date)
+        if self.style is OptionsStyle.ZERO_DTE and not _zero_dte_setup_allowed(decision):
+            return cash, None
         spot = entry_bar.open.value
         strike = round_to_strike_increment(spot)
         side = OptionSide.CALL if decision.action is SignalAction.BUY else OptionSide.PUT
@@ -256,7 +264,7 @@ class OptionsBacktester:
         contract_cost = premium * CONTRACT_MULTIPLIER
         round_trip_commission = COMMISSION_PER_CONTRACT * Decimal("2")
         per_contract_budget = contract_cost + round_trip_commission
-        premium_budget = cash * self.premium_budget_fraction
+        premium_budget = cash * self._effective_premium_budget_fraction()
         contracts = (
             int(premium_budget // per_contract_budget) if per_contract_budget > Decimal("0") else 0
         )
@@ -265,6 +273,8 @@ class OptionsBacktester:
                 contracts = 1
             else:
                 return cash, None
+        if self.style is OptionsStyle.ZERO_DTE:
+            contracts = min(contracts, ZERO_DTE_MAX_CONTRACTS)
 
         total_cost = (contract_cost + COMMISSION_PER_CONTRACT) * Decimal(contracts)
         if total_cost > cash:
@@ -280,7 +290,14 @@ class OptionsBacktester:
             entry_premium=premium,
             contracts=contracts,
             entry_reason=decision.explanation,
+            stop_underlying=decision.stop_loss.value if decision.stop_loss else None,
+            take_profit_underlying=decision.take_profit.value if decision.take_profit else None,
         )
+
+    def _effective_premium_budget_fraction(self) -> Decimal:
+        if self.style is OptionsStyle.ZERO_DTE:
+            return min(self.premium_budget_fraction, ZERO_DTE_PREMIUM_BUDGET_FRACTION)
+        return self.premium_budget_fraction
 
     def _mark_position(
         self, position: _OpenPosition | None, bar: Bar, closes: list[Decimal]
@@ -312,8 +329,13 @@ class OptionsBacktester:
         at_expiration: bool,
     ) -> tuple[Decimal, OptionsTrade]:
         today = bar.timestamp.date()
+        exit_underlying = bar.close.value
+        adjusted_exit_reason = exit_reason
         if at_expiration:
-            exit_premium = intrinsic_value(bar.close.value, position.strike, position.option_side)
+            exit_underlying, adjusted_exit_reason = _zero_dte_underlying_exit(
+                position, bar, exit_reason
+            )
+            exit_premium = intrinsic_value(exit_underlying, position.strike, position.option_side)
         else:
             years_remaining = Decimal(max((position.expiration - today).days, 0)) / Decimal("365")
             exit_premium = black_scholes_price(
@@ -342,13 +364,39 @@ class OptionsBacktester:
             entry_premium=position.entry_premium,
             contracts=position.contracts,
             exit_at=today,
-            exit_underlying=bar.close.value,
+            exit_underlying=exit_underlying,
             exit_premium=exit_premium,
             realized_pnl=proceeds - entry_cost,
             entry_reason=position.entry_reason,
-            exit_reason=exit_reason,
+            exit_reason=adjusted_exit_reason,
         )
         return cash + proceeds, trade
+
+
+def _zero_dte_setup_allowed(decision: MasterDecision) -> bool:
+    return (
+        decision.confidence.value >= ZERO_DTE_MIN_CONFIDENCE
+        and decision.risk_score.value <= ZERO_DTE_MAX_RISK_SCORE
+        and decision.expected_r_multiple >= Decimal("1.5")
+    )
+
+
+def _zero_dte_underlying_exit(
+    position: _OpenPosition, bar: Bar, default_reason: str
+) -> tuple[Decimal, str]:
+    if position.stop_underlying is None or position.take_profit_underlying is None:
+        return bar.close.value, default_reason
+    if position.option_side is OptionSide.CALL:
+        stopped = bar.low.value <= position.stop_underlying
+        targeted = bar.high.value >= position.take_profit_underlying
+    else:
+        stopped = bar.high.value >= position.stop_underlying
+        targeted = bar.low.value <= position.take_profit_underlying
+    if stopped:
+        return position.stop_underlying, "0DTE underlying stop touched before expiry"
+    if targeted:
+        return position.take_profit_underlying, "0DTE underlying target touched before expiry"
+    return bar.close.value, default_reason
 
 
 def _compute_metrics(

@@ -7,6 +7,7 @@ from backend.app.application.agents.registry import create_default_agents
 from backend.app.application.decision_engine import MasterDecisionEngine
 from backend.app.application.options_backtesting import (
     MIN_TRADABLE_PREMIUM,
+    ZERO_DTE_MAX_CONTRACTS,
     OptionsBacktester,
     OptionsStyle,
 )
@@ -70,7 +71,7 @@ def test_zero_dte_backtest_produces_same_day_round_trips() -> None:
         # 0DTE: the contract opens and expires the same calendar day.
         assert trade.entry_at == trade.exit_at
         assert trade.expiration == trade.entry_at
-        assert trade.contracts >= 1
+        assert 1 <= trade.contracts <= ZERO_DTE_MAX_CONTRACTS
         assert trade.option_side in {OptionSide.CALL, OptionSide.PUT}
         assert trade.entry_reason
         assert trade.exit_reason
