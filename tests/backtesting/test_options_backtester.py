@@ -1,7 +1,7 @@
 import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from backend.app.application.agents.registry import create_default_agents
 from backend.app.application.decision_engine import MasterDecisionEngine
@@ -24,7 +24,7 @@ def _oscillating(index: int) -> Decimal:
     return Decimal("120") + Decimal(str(round(15 * math.sin(index / 12), 4)))
 
 
-def _bars(instrument_id, count: int) -> tuple[Bar, ...]:
+def _bars(instrument_id: UUID, count: int) -> tuple[Bar, ...]:
     start = datetime(2024, 1, 1, 14, 30, tzinfo=UTC)
     bars = []
     for index in range(count):

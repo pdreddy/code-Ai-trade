@@ -8,10 +8,10 @@ from urllib.error import HTTPError
 
 import pytest
 
+from backend.app.infrastructure.providers.yahoo import YahooFinanceProviderError
 from backend.app.infrastructure.providers.yahoo_options import (
     CRUMB_URL,
     YAHOO_OPTIONS_URL,
-    YahooFinanceProviderError,
     YahooOptionsProvider,
 )
 

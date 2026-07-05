@@ -17,6 +17,7 @@ from backend.app.domain.value_objects import Price
 
 pytest.importorskip("fastapi", reason="FastAPI dependency is required for API tests")
 
+from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from backend.app.api.v1.market_data import get_market_data_service  # noqa: E402
@@ -104,7 +105,7 @@ class _EmptyOptionsProvider:
         )
 
 
-def _client() -> TestClient:
+def _client() -> tuple[FastAPI, TestClient]:
     app = create_app()
     app.dependency_overrides[get_market_data_service] = lambda: MarketDataService(
         _StubMarketProvider()

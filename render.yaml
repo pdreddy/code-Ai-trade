@@ -55,6 +55,27 @@ services:
       - key: NEXT_PUBLIC_API_BASE_URL
         value: https://ai-quant-backend.onrender.com/api/v1
 
+  # Auto-trades the live options paper ledger: no real broker, no real money —
+  # just removes the manual "Run ledger tick" click by calling the same
+  # endpoint on a schedule. Runs against the ai-quant-backend web service, so
+  # it reuses that process's in-memory ledger state exactly as a manual click
+  # would (see options_forward_ledger.py for why it's in-memory, not durable).
+  - type: cron
+    name: ai-quant-ledger-tick
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: python -m pip install --upgrade pip
+    # 14:00 UTC lands shortly after the 9:30am ET open in both EDT and EST,
+    # weekdays only.
+    schedule: "0 14 * * 1-5"
+    startCommand: python scripts/tick_options_ledger.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.13
+      - key: AI_QUANT_BACKEND_URL
+        value: https://ai-quant-backend.onrender.com/api/v1
+
   - type: keyvalue
     name: ai-quant-redis
     plan: starter

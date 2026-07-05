@@ -152,7 +152,7 @@ def test_tick_settles_delisted_contract_using_real_underlying_intrinsic() -> Non
 
     # The contract has now rolled off the live chain (expired) -> settle it using
     # the real underlying close, not a modeled premium.
-    ledger.options = _FakeOptionsProvider(  # type: ignore[assignment]
+    ledger.options = _FakeOptionsProvider(
         OptionChain(
             symbol="TEST",
             underlying_price=Decimal("135"),
