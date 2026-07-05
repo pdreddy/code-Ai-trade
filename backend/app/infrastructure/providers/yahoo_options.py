@@ -5,6 +5,12 @@ call/put into a domain ``OptionContract``. The base response carries the nearest
 expiry plus the full list of expiration dates; additional near-term expiries are
 fetched by epoch so 0DTE and weekly contracts are all available. No persistence
 and no trading logic live here.
+
+Unlike the chart endpoint, Yahoo's options endpoint rejects requests with HTTP
+401 unless they carry a session cookie plus a "crumb" token — the same
+handshake other Yahoo Finance API clients use: bootstrap a session cookie,
+fetch a crumb, then include both on the options request. The crumb is cached
+and refreshed once if a request comes back 401 (it can expire mid-session).
 """
 
 from __future__ import annotations
@@ -13,10 +19,11 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
+from http.cookiejar import CookieJar
 from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import HTTPCookieProcessor, OpenerDirector, Request, build_opener
 
 from backend.app.domain.options import OptionChain, OptionContract, OptionType
 from backend.app.infrastructure.providers.yahoo import (
@@ -26,6 +33,9 @@ from backend.app.infrastructure.providers.yahoo import (
 )
 
 YAHOO_OPTIONS_URL = "https://query1.finance.yahoo.com/v7/finance/options/{symbol}"
+COOKIE_BOOTSTRAP_URL = "https://fc.yahoo.com"
+CRUMB_URL = "https://query2.finance.yahoo.com/v1/test/getcrumb"
+UNAUTHORIZED_STATUS = 401
 
 
 class YahooOptionsProvider:
@@ -33,8 +43,14 @@ class YahooOptionsProvider:
 
     provider_name = "yahoo"
 
-    def __init__(self, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+        opener: OpenerDirector | None = None,
+    ) -> None:
         self._timeout_seconds = timeout_seconds
+        self._opener = opener or build_opener(HTTPCookieProcessor(CookieJar()))
+        self._crumb: str | None = None
 
     def fetch_option_chain(self, symbol: str, max_expiries: int = 3) -> OptionChain:
         upper = symbol.upper()
@@ -69,18 +85,68 @@ class YahooOptionsProvider:
     def _get_options_payload(
         self, symbol: str, expiry_epoch: int | None
     ) -> Mapping[str, Any]:
-        query = urlencode({"date": expiry_epoch}) if expiry_epoch is not None else ""
-        url = YAHOO_OPTIONS_URL.format(symbol=symbol)
-        if query:
-            url = f"{url}?{query}"
+        crumb = self._ensure_crumb(symbol)
+        try:
+            return self._open_json(self._options_url(symbol, expiry_epoch, crumb), symbol)
+        except HTTPError as exc:
+            if exc.code != UNAUTHORIZED_STATUS:
+                raise YahooFinanceProviderError(
+                    f"Yahoo Finance rejected options for {symbol} with HTTP {exc.code}"
+                ) from exc
+            # The crumb may have expired mid-session; refresh once and retry.
+            self._crumb = None
+            fresh_crumb = self._ensure_crumb(symbol)
+            try:
+                return self._open_json(
+                    self._options_url(symbol, expiry_epoch, fresh_crumb), symbol
+                )
+            except HTTPError as retry_exc:
+                raise YahooFinanceProviderError(
+                    f"Yahoo Finance rejected options for {symbol} with HTTP {retry_exc.code}"
+                ) from retry_exc
+
+    def _options_url(self, symbol: str, expiry_epoch: int | None, crumb: str) -> str:
+        params: dict[str, str] = {"crumb": crumb}
+        if expiry_epoch is not None:
+            params["date"] = str(expiry_epoch)
+        return f"{YAHOO_OPTIONS_URL.format(symbol=symbol)}?{urlencode(params)}"
+
+    def _ensure_crumb(self, symbol: str) -> str:
+        if self._crumb:
+            return self._crumb
+        self._bootstrap_session_cookie()
+        request = Request(CRUMB_URL, headers=REQUEST_HEADERS)  # noqa: S310
+        try:
+            with self._opener.open(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+                crumb = cast(bytes, response.read()).decode("utf-8").strip()
+        except (HTTPError, URLError) as exc:
+            raise YahooFinanceProviderError(
+                f"Yahoo Finance crumb request failed for {symbol}: {exc}"
+            ) from exc
+        if not crumb or crumb.startswith("<"):
+            raise YahooFinanceProviderError(
+                f"Yahoo Finance did not return a usable crumb for {symbol}"
+            )
+        self._crumb = crumb
+        return crumb
+
+    def _bootstrap_session_cookie(self) -> None:
+        request = Request(COOKIE_BOOTSTRAP_URL, headers=REQUEST_HEADERS)  # noqa: S310
+        try:
+            with self._opener.open(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+                response.read()
+        except (HTTPError, URLError):
+            # Best-effort: the crumb request below still fails clearly if this
+            # hop was actually required and didn't succeed.
+            pass
+
+    def _open_json(self, url: str, symbol: str) -> Mapping[str, Any]:
         http_request = Request(url, headers=REQUEST_HEADERS)  # noqa: S310
         try:
-            with urlopen(http_request, timeout=self._timeout_seconds) as response:  # noqa: S310
+            with self._opener.open(http_request, timeout=self._timeout_seconds) as response:  # noqa: S310
                 return cast(Mapping[str, Any], json.loads(response.read().decode("utf-8")))
-        except HTTPError as exc:
-            raise YahooFinanceProviderError(
-                f"Yahoo Finance rejected options for {symbol} with HTTP {exc.code}"
-            ) from exc
+        except HTTPError:
+            raise  # handled by the caller (e.g. a 401 triggers a crumb refresh + retry)
         except URLError as exc:
             raise YahooFinanceProviderError(
                 f"Yahoo Finance options request failed for {symbol}: {exc.reason}"
