@@ -55,6 +55,9 @@ ZERO_DTE_MIN_CONFIDENCE = Decimal("0.38")
 ZERO_DTE_MAX_RISK_SCORE = Decimal("0.63")
 ZERO_DTE_PREMIUM_BUDGET_FRACTION = Decimal("0.05")
 ZERO_DTE_MAX_CONTRACTS = 10
+ZERO_DTE_MIN_TARGET_RETURN = Decimal("0.50")
+ZERO_DTE_MIN_DAILY_TARGET_RETURN = Decimal("0.20")
+ZERO_DTE_MIN_REWARD_RISK = Decimal("2")
 MIN_BAR_COUNT = 30
 
 
@@ -260,6 +263,13 @@ class OptionsBacktester:
         )
         if premium < MIN_TRADABLE_PREMIUM:
             return cash, None
+        if self.style is OptionsStyle.ZERO_DTE and not _zero_dte_reward_plan_allowed(
+            decision=decision,
+            entry_premium=premium,
+            strike=strike,
+            side=side,
+        ):
+            return cash, None
 
         contract_cost = premium * CONTRACT_MULTIPLIER
         round_trip_commission = COMMISSION_PER_CONTRACT * Decimal("2")
@@ -378,6 +388,24 @@ def _zero_dte_setup_allowed(decision: MasterDecision) -> bool:
         decision.confidence.value >= ZERO_DTE_MIN_CONFIDENCE
         and decision.risk_score.value <= ZERO_DTE_MAX_RISK_SCORE
         and decision.expected_r_multiple >= Decimal("1.5")
+    )
+
+
+def _zero_dte_reward_plan_allowed(
+    decision: MasterDecision, entry_premium: Decimal, strike: Decimal, side: OptionSide
+) -> bool:
+    if decision.stop_loss is None or decision.take_profit is None or entry_premium <= Decimal("0"):
+        return False
+    target_premium = intrinsic_value(decision.take_profit.value, strike, side)
+    stop_premium = intrinsic_value(decision.stop_loss.value, strike, side)
+    target_return = target_premium / entry_premium - Decimal("1")
+    planned_risk = max(entry_premium - stop_premium, Decimal("0"))
+    planned_reward = target_premium - entry_premium
+    reward_risk = planned_reward / planned_risk if planned_risk > Decimal("0") else Decimal("0")
+    return (
+        target_return >= ZERO_DTE_MIN_TARGET_RETURN
+        and target_return >= ZERO_DTE_MIN_DAILY_TARGET_RETURN
+        and reward_risk >= ZERO_DTE_MIN_REWARD_RISK
     )
 
 

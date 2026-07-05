@@ -6,8 +6,12 @@ from uuid import UUID, uuid4
 from backend.app.application.agents.registry import create_default_agents
 from backend.app.application.decision_engine import MasterDecisionEngine
 from backend.app.application.options_backtesting import (
+    COMMISSION_PER_CONTRACT,
+    CONTRACT_MULTIPLIER,
     MIN_TRADABLE_PREMIUM,
     ZERO_DTE_MAX_CONTRACTS,
+    ZERO_DTE_MIN_DAILY_TARGET_RETURN,
+    ZERO_DTE_MIN_TARGET_RETURN,
     OptionsBacktester,
     OptionsStyle,
 )
@@ -163,3 +167,19 @@ def test_options_backtest_skips_dust_premium_contracts() -> None:
     result = _backtester(OptionsStyle.ZERO_DTE).run(instrument_id, "SPY", flat_bars)
 
     assert all(trade.entry_premium >= MIN_TRADABLE_PREMIUM for trade in result.trades)
+
+
+def test_zero_dte_winning_trades_clear_minimum_return_floor() -> None:
+    instrument_id = uuid4()
+    bars = _bars(instrument_id, BAR_COUNT)
+
+    result = _backtester(OptionsStyle.ZERO_DTE).run(instrument_id, "SPY", bars)
+
+    assert result.trades
+    for trade in result.trades:
+        entry_cost = (
+            trade.entry_premium * CONTRACT_MULTIPLIER + COMMISSION_PER_CONTRACT
+        ) * Decimal(trade.contracts)
+        realized_return = trade.realized_pnl / entry_cost
+        assert realized_return >= ZERO_DTE_MIN_TARGET_RETURN
+        assert realized_return >= ZERO_DTE_MIN_DAILY_TARGET_RETURN
