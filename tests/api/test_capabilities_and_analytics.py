@@ -74,3 +74,16 @@ def test_trade_analytics_endpoint_uses_supplied_trade_records() -> None:
     assert payload["loss_count"] == 1
     assert payload["success_rate"] == "0.5"
     assert payload["total_realized_pnl"] == "50"
+
+
+def test_platform_readiness_gaps_identify_blockers() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/api/v1/platform/readiness-gaps")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    areas = {item["area"] for item in payload}
+    assert "0DTE options execution" in areas
+    assert "Persistent paper-trading ledger" in areas
+    assert any(item["severity"] == "critical" for item in payload)

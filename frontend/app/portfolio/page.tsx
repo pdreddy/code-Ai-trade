@@ -6,9 +6,9 @@ export default function PortfolioPage() {
   return (
     <TerminalShell>
       <PagePanel
-        description="Portfolio view for the current $5,000 paper-research simulation across the supported ETF universe. Values are calculated from real provider-backed strategy results."
+        description="Portfolio view for the current $10,000 paper-research simulation across the supported ETF universe. Values are calculated from real provider-backed strategy results."
         eyebrow="Portfolio"
-        title="$5,000 Paper Portfolio Monitor"
+        title="$10,000 Paper Portfolio Monitor"
       >
         <DailyResearchReport view="portfolio" />
       </PagePanel>

@@ -1,5 +1,6 @@
 import { DailyResearchReport } from "@/components/daily-research-report";
 import { PagePanel } from "@/components/page-panel";
+import { PlatformReadiness } from "@/components/platform-readiness";
 import { StatusGrid } from "@/components/status-grid";
 import { TerminalShell } from "@/components/terminal-shell";
 import { backendCapabilities, supportedUniverse } from "@/lib/platform-data";
@@ -13,6 +14,13 @@ export default function HomePage() {
         title="Research Platform Status"
       >
         <><StatusGrid capabilities={backendCapabilities} /><div className="mt-6"><DailyResearchReport view="dashboard" /></div></>
+      </PagePanel>
+      <PagePanel
+        description="Honest readiness matrix for the gaps that still block a true institutional trading workstation."
+        eyebrow="Readiness"
+        title="Known Gaps And Required Fixes"
+      >
+        <PlatformReadiness />
       </PagePanel>
       <PagePanel
         description="The platform is designed for broad equity and ETF coverage without hard-coding provider behavior into the UI."
