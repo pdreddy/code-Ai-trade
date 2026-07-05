@@ -21,6 +21,12 @@ services:
         value: "false"
       - key: AI_QUANT_MARKET_DATA_PROVIDER
         value: yahoo
+      - key: AI_QUANT_OPTIONS_DATA_PROVIDER
+        value: yahoo
+      - key: AI_QUANT_TRADIER_API_TOKEN
+        sync: false
+      - key: AI_QUANT_TRADIER_BASE_URL
+        value: https://sandbox.tradier.com/v1
       - key: AI_QUANT_CORS_ORIGINS
         value: '["https://ai-quant-frontend.onrender.com"]'
       - key: AI_QUANT_DATABASE_URL

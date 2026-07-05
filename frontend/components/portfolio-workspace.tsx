@@ -273,7 +273,7 @@ function WorkspaceHeader({
       {state.data ? (
         <p className="mt-3 text-xs text-terminal-muted">
           {formatCurrency(state.data.initial_capital)} deployed across {state.data.symbol_count}{" "}
-          symbols (Magnificent 7) · generated {state.data.generated_at.slice(0, 10)}
+          symbols · generated {state.data.generated_at.slice(0, 10)}
           {state.data.errors.length
             ? ` · ${state.data.errors.length} symbol(s) unavailable: ${state.data.errors
                 .map((item) => item.symbol)
@@ -296,7 +296,7 @@ export function PortfolioMonitor() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        description="The AI master decision is executed on every Magnificent 7 symbol from one shared $10,000 base (signal-on-close, fill-next-open). Total equity, cash, and invested reflect the current state; use Window to zoom the equity curve and win/loss stats into the trailing 1M-1Y."
+        description="The AI master decision is executed on every symbol in the research universe from one shared $10,000 base (signal-on-close, fill-next-open). Total equity, cash, and invested reflect the current state; use Window to zoom the equity curve and win/loss stats into the trailing 1M-1Y."
         eyebrow="Portfolio"
         onWindowChange={setWindowDays}
         state={state}
@@ -474,7 +474,7 @@ export function PaperTradeBlotter() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        description="Every fill the system executed across the Magnificent 7 from the shared $10,000 base. Each row is a long equity round-trip with its entry, exit, size, realized P&L, and the AI's reasoning. These are stock trades, not options — open the linked options chain for real call/put contracts on that symbol."
+        description="Every fill the system executed across the research universe from the shared $10,000 base. Each row is a long equity round-trip with its entry, exit, size, realized P&L, and the AI's reasoning. These are stock trades, not options — open the linked options chain for real call/put contracts on that symbol."
         eyebrow="Paper Trades"
         onWindowChange={setWindowDays}
         state={state}
@@ -604,7 +604,7 @@ export function PerformanceAnalytics() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        description="Performance attribution computed from the real executed track record across the Magnificent 7 — success rate, returns, drawdown, and the equity curve for the selected window. No fabricated performance data is shown."
+        description="Performance attribution computed from the real executed track record across the research universe — success rate, returns, drawdown, and the equity curve for the selected window. No fabricated performance data is shown."
         eyebrow="Analytics"
         onWindowChange={setWindowDays}
         state={state}

@@ -108,10 +108,10 @@ export function OptionsPortfolioWorkspace() {
             </p>
             <h2 className="mt-3 text-2xl font-semibold">$10,000 0DTE / Weekly Options Track Record</h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-terminal-muted">
-              A dedicated $10,000 capital base, separate from the Magnificent 7 equity portfolio,
-              deployed into 0DTE and weekly calls/puts across SPY, QQQ, IWM (true same-day
-              expiries) and AAPL, MSFT, NVDA, TSLA (weekly). The AI master decision picks
-              direction — calls on BUY, puts on SELL.
+              A dedicated $10,000 capital base, separate from the stock portfolio, deployed into
+              0DTE and weekly calls/puts across SPY, QQQ, IWM (true same-day expiries) and AAPL,
+              MSFT, NVDA, TSLA, AMD, META, GOOGL (weekly). The AI master decision picks direction —
+              calls on BUY, puts on SELL.
             </p>
           </div>
           <button
