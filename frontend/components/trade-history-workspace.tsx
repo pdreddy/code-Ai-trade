@@ -58,12 +58,30 @@ function groupByDay(trades: UnifiedTrade[]): DayGroup[] {
     .sort((a, b) => (a.day < b.day ? 1 : -1));
 }
 
-function Stat({ label, value, tone }: Readonly<{ label: string; value: string; tone?: "up" | "down" }>) {
+function formatCompactCurrency(value: number): string {
+  const compact = Math.abs(value) >= 1_000_000_000;
+  return value.toLocaleString("en-US", {
+    compactDisplay: compact ? "short" : undefined,
+    currency: "USD",
+    maximumFractionDigits: compact ? 2 : 2,
+    notation: compact ? "compact" : "standard",
+    style: "currency"
+  });
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+  title
+}: Readonly<{ label: string; value: string; tone?: "up" | "down"; title?: string }>) {
   const toneClass = tone === "up" ? "text-emerald-300" : tone === "down" ? "text-terminal-danger" : "";
   return (
-    <div className="rounded-xl border border-terminal-border bg-black/20 p-4">
+    <div className="min-w-0 rounded-xl border border-terminal-border bg-black/20 p-4">
       <p className="text-xs uppercase tracking-wide text-terminal-muted">{label}</p>
-      <p className={`mt-1 font-mono text-lg ${toneClass}`}>{value}</p>
+      <p className={`mt-1 truncate font-mono text-lg ${toneClass}`} title={title ?? value}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -211,7 +229,8 @@ export function TradeHistoryWorkspace() {
               <Stat label="Total trades" value={formatNumber(trades.length)} />
               <Stat
                 label="Total P&L"
-                value={formatCurrency(totalPnl)}
+                title={formatCurrency(totalPnl)}
+                value={formatCompactCurrency(totalPnl)}
                 tone={totalPnl >= 0 ? "up" : "down"}
               />
               <Stat label="Winners" value={formatNumber(winning)} tone="up" />

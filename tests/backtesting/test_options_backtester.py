@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from backend.app.application.agents.registry import create_default_agents
 from backend.app.application.decision_engine import MasterDecisionEngine
 from backend.app.application.options_backtesting import (
+    MIN_TRADABLE_PREMIUM,
     OptionsBacktester,
     OptionsStyle,
 )
@@ -141,3 +142,23 @@ def test_options_strategy_screen_ranks_styles_by_winning_metrics() -> None:
             reverse=True,
         )
     )
+
+
+def test_options_backtest_skips_dust_premium_contracts() -> None:
+    instrument_id = uuid4()
+    flat_bars = tuple(
+        Bar(
+            instrument_id=instrument_id,
+            timestamp=datetime(2024, 1, 1, 14, 30, tzinfo=UTC) + timedelta(days=index),
+            open=Price(Decimal("100")),
+            high=Price(Decimal("100.01")),
+            low=Price(Decimal("99.99")),
+            close=Price(Decimal("100")),
+            volume=1_000_000,
+        )
+        for index in range(BAR_COUNT)
+    )
+
+    result = _backtester(OptionsStyle.ZERO_DTE).run(instrument_id, "SPY", flat_bars)
+
+    assert all(trade.entry_premium >= MIN_TRADABLE_PREMIUM for trade in result.trades)

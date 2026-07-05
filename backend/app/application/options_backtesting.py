@@ -50,6 +50,7 @@ RISK_FREE_RATE = Decimal("0.05")
 PREMIUM_BUDGET_FRACTION = Decimal("0.20")
 CONTRACT_MULTIPLIER = Decimal("100")
 COMMISSION_PER_CONTRACT = Decimal("0.65")
+MIN_TRADABLE_PREMIUM = Decimal("0.05")
 MIN_BAR_COUNT = 30
 
 
@@ -133,13 +134,9 @@ class OptionsBacktester:
     risk_free_rate: Decimal = RISK_FREE_RATE
     premium_budget_fraction: Decimal = PREMIUM_BUDGET_FRACTION
 
-    def run(
-        self, instrument_id: UUID, symbol: str, bars: Sequence[Bar]
-    ) -> OptionsBacktestResult:
+    def run(self, instrument_id: UUID, symbol: str, bars: Sequence[Bar]) -> OptionsBacktestResult:
         if len(bars) < MIN_BAR_COUNT:
-            raise DomainValidationError(
-                f"options backtest requires at least {MIN_BAR_COUNT} bars"
-            )
+            raise DomainValidationError(f"options backtest requires at least {MIN_BAR_COUNT} bars")
 
         cash = self.initial_capital
         position: _OpenPosition | None = None
@@ -206,9 +203,7 @@ class OptionsBacktester:
             next_signal=last_decision,
         )
 
-    def _decide(
-        self, instrument_id: UUID, bars: Sequence[Bar], index: int
-    ) -> MasterDecision:
+    def _decide(self, instrument_id: UUID, bars: Sequence[Bar], index: int) -> MasterDecision:
         window_start = max(0, index + 1 - AGENT_LOOKBACK_BARS)
         window = bars[window_start : index + 1]
         evaluated_at = bars[index].timestamp
@@ -255,19 +250,23 @@ class OptionsBacktester:
                 side=side,
             )
         )
-        if premium <= Decimal("0"):
+        if premium < MIN_TRADABLE_PREMIUM:
             return cash, None
 
         contract_cost = premium * CONTRACT_MULTIPLIER
+        round_trip_commission = COMMISSION_PER_CONTRACT * Decimal("2")
+        per_contract_budget = contract_cost + round_trip_commission
         premium_budget = cash * self.premium_budget_fraction
-        contracts = int(premium_budget // contract_cost) if contract_cost > Decimal("0") else 0
+        contracts = (
+            int(premium_budget // per_contract_budget) if per_contract_budget > Decimal("0") else 0
+        )
         if contracts < 1:
-            if cash >= contract_cost + COMMISSION_PER_CONTRACT:
+            if cash >= per_contract_budget:
                 contracts = 1
             else:
                 return cash, None
 
-        total_cost = contract_cost * Decimal(contracts) + COMMISSION_PER_CONTRACT
+        total_cost = (contract_cost + COMMISSION_PER_CONTRACT) * Decimal(contracts)
         if total_cost > cash:
             return cash, None
 
@@ -327,14 +326,12 @@ class OptionsBacktester:
                     side=position.option_side,
                 )
             )
-        proceeds = (
-            exit_premium * CONTRACT_MULTIPLIER * Decimal(position.contracts)
-            - COMMISSION_PER_CONTRACT
+        proceeds = (exit_premium * CONTRACT_MULTIPLIER - COMMISSION_PER_CONTRACT) * Decimal(
+            position.contracts
         )
         entry_cost = (
-            position.entry_premium * CONTRACT_MULTIPLIER * Decimal(position.contracts)
-            + COMMISSION_PER_CONTRACT
-        )
+            position.entry_premium * CONTRACT_MULTIPLIER + COMMISSION_PER_CONTRACT
+        ) * Decimal(position.contracts)
         trade = OptionsTrade(
             id=position.id,
             option_side=position.option_side,
