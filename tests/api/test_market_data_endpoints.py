@@ -140,6 +140,7 @@ def test_backtest_endpoint_executes_trades_with_success_rate_and_next_signal() -
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
     assert payload["symbol"] == "SPY"
+    assert payload["strategy"] == "master"
     assert payload["bar_count"] == BACKTEST_BAR_COUNT
     metrics = payload["metrics"]
     # The oscillating series must generate closed round-trip trades.
@@ -152,6 +153,82 @@ def test_backtest_endpoint_executes_trades_with_success_rate_and_next_signal() -
     for trade in payload["trades"]:
         assert trade["entry_price"] is not None
         assert trade["realized_pnl"] is not None
+
+
+def test_backtest_endpoint_accepts_alternate_strategy_variants() -> None:
+    client = _client(bar_count=BACKTEST_BAR_COUNT, price=_oscillating)
+
+    response = client.get(
+        "/api/v1/market-data/SPY/backtest",
+        params={"days": 1200, "strategy": "trend_only"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["strategy"] == "trend_only"
+
+
+def test_backtest_endpoint_rejects_unknown_strategy() -> None:
+    client = _client(bar_count=BACKTEST_BAR_COUNT, price=_oscillating)
+
+    response = client.get(
+        "/api/v1/market-data/SPY/backtest",
+        params={"days": 1200, "strategy": "not_a_real_strategy"},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+EXPECTED_STRATEGY_COUNT = 5
+
+
+def test_list_strategies_returns_every_named_variant() -> None:
+    client = _client(bar_count=HISTORY_BAR_COUNT)
+
+    response = client.get("/api/v1/market-data/strategies")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert len(payload) == EXPECTED_STRATEGY_COUNT
+    keys = {item["key"] for item in payload}
+    assert keys == {
+        "master",
+        "trend_only",
+        "breakout_only",
+        "mean_reversion_only",
+        "high_confidence",
+    }
+
+
+def test_strategy_screen_compares_every_variant_on_real_win_rate() -> None:
+    client = _client(bar_count=BACKTEST_BAR_COUNT, price=_oscillating)
+
+    response = client.get(
+        "/api/v1/market-data/SPY/strategy-screen",
+        params={"days": 1200, "win_rate_threshold": "0.8"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["symbol"] == "SPY"
+    assert payload["win_rate_threshold"] == "0.8"
+    assert len(payload["results"]) == EXPECTED_STRATEGY_COUNT
+    # Results are ranked by win rate, descending.
+    win_rates = [Decimal(item["win_rate"]) for item in payload["results"]]
+    assert win_rates == sorted(win_rates, reverse=True)
+    # qualifying_count must exactly match how many results actually cleared it —
+    # this is a real, computed count, not a claim.
+    actual_qualifying = sum(1 for item in payload["results"] if item["meets_threshold"])
+    assert payload["qualifying_count"] == actual_qualifying
+    for item in payload["results"]:
+        assert item["meets_threshold"] == (Decimal(item["win_rate"]) >= Decimal("0.8"))
+        assert item["key"] in {
+            "master",
+            "trend_only",
+            "breakout_only",
+            "mean_reversion_only",
+            "high_confidence",
+        }
 
 
 def test_history_endpoint_supports_ten_year_range() -> None:

@@ -88,6 +88,7 @@ export type BacktestMetrics = {
 
 export type Backtest = {
   symbol: string;
+  strategy: string;
   start: string;
   end: string;
   bar_count: number;
@@ -97,6 +98,12 @@ export type Backtest = {
   equity_curve: EquityPoint[];
   trades: TradeRecord[];
   next_signal: MasterDecision | null;
+};
+
+export type StrategyOption = {
+  key: string;
+  label: string;
+  description: string;
 };
 
 export class ApiError extends Error {}
@@ -154,9 +161,52 @@ export function fetchSignals(symbol: string, days = 420): Promise<Signals> {
   );
 }
 
-export function fetchBacktest(symbol: string, days = 1825): Promise<Backtest> {
+export function fetchBacktest(
+  symbol: string,
+  days = 1825,
+  strategy = "master"
+): Promise<Backtest> {
   return getJson<Backtest>(
-    `/market-data/${encodeURIComponent(symbol)}/backtest?days=${days}`
+    `/market-data/${encodeURIComponent(symbol)}/backtest?days=${days}&strategy=${strategy}`
+  );
+}
+
+let strategyOptionsCache: Promise<StrategyOption[]> | null = null;
+
+export function fetchStrategyOptions(): Promise<StrategyOption[]> {
+  strategyOptionsCache ??= getJson<StrategyOption[]>("/market-data/strategies");
+  return strategyOptionsCache;
+}
+
+export type StrategyScreenResult = {
+  key: string;
+  label: string;
+  description: string;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: string;
+  total_return: string;
+  max_drawdown: string;
+  meets_threshold: boolean;
+  next_signal: MasterDecision | null;
+};
+
+export type StrategyScreen = {
+  symbol: string;
+  win_rate_threshold: string;
+  qualifying_count: number;
+  results: StrategyScreenResult[];
+};
+
+export function fetchStrategyScreen(
+  symbol: string,
+  days = 1825,
+  winRateThreshold = 0.8
+): Promise<StrategyScreen> {
+  return getJson<StrategyScreen>(
+    `/market-data/${encodeURIComponent(symbol)}/strategy-screen?days=${days}&win_rate_threshold=${winRateThreshold}`,
+    90_000
   );
 }
 

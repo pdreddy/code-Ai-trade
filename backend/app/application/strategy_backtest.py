@@ -20,6 +20,7 @@ from backend.app.application.decision_engine import (
 )
 from backend.app.domain.agents import AgentRequest, TradingAgent
 from backend.app.domain.entities import BacktestRun, Bar, MasterDecision
+from backend.app.domain.errors import DomainValidationError
 from backend.app.domain.value_objects import Price
 
 # The most history-hungry agent looks back 200 bars, so a bounded trailing window
@@ -38,6 +39,11 @@ class StrategyBacktestService:
     agents: tuple[TradingAgent, ...]
     engine: MasterDecisionEngine
     backtester: EventDrivenBacktester
+    # None (default) blends every agent's vote, matching the platform-wide master
+    # decision. Restricting to a subset turns this into a distinct strategy (e.g.
+    # trend-only) using the exact same real agents and aggregation math — no new
+    # signal logic, just a different, genuinely narrower vote set.
+    agent_names: tuple[str, ...] | None = None
 
     def run(self, run: BacktestRun, bars: Sequence[Bar]) -> StrategyBacktestResult:
         decisions = tuple(self._decide_at(run, bars, index) for index in range(len(bars)))
@@ -60,6 +66,12 @@ class StrategyBacktestService:
             evaluated_at=evaluated_at,
         )
         votes = tuple(agent.evaluate(agent_request) for agent in self.agents)
+        if self.agent_names is not None:
+            votes = tuple(vote for vote in votes if vote.agent_name in self.agent_names)
+            if not votes:
+                raise DomainValidationError(
+                    f"no agent votes matched strategy agent set {self.agent_names}"
+                )
         return self.engine.decide(
             MasterDecisionRequest(
                 instrument_id=run.instrument_id,

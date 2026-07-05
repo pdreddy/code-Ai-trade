@@ -15,10 +15,19 @@ import {
   formatPercent,
   formatSignedPercent
 } from "@/components/research";
-import { ApiError, fetchBacktest, type Backtest } from "@/lib/api";
+import {
+  ApiError,
+  fetchBacktest,
+  fetchStrategyOptions,
+  fetchStrategyScreen,
+  type Backtest,
+  type StrategyOption,
+  type StrategyScreen
+} from "@/lib/api";
 
 const DEFAULT_SYMBOL = "AAPL";
 const DEFAULT_RANGE_DAYS = 1825; // 5 years
+const DEFAULT_STRATEGY = "master";
 const TRADE_LIMIT = 100;
 
 export function BacktestWorkspace() {
@@ -27,15 +36,17 @@ export function BacktestWorkspace() {
 
   const [symbol, setSymbol] = useState(initialSymbol);
   const [rangeDays, setRangeDays] = useState(DEFAULT_RANGE_DAYS);
+  const [strategy, setStrategy] = useState(DEFAULT_STRATEGY);
+  const [strategyOptions, setStrategyOptions] = useState<StrategyOption[]>([]);
   const [backtest, setBacktest] = useState<Backtest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (target: string, days: number) => {
+  const load = useCallback(async (target: string, days: number, strategyKey: string) => {
     setLoading(true);
     setError(null);
     try {
-      setBacktest(await fetchBacktest(target, days));
+      setBacktest(await fetchBacktest(target, days, strategyKey));
     } catch (caught) {
       setBacktest(null);
       setError(caught instanceof ApiError ? caught.message : "Unexpected error running backtest.");
@@ -45,8 +56,40 @@ export function BacktestWorkspace() {
   }, []);
 
   useEffect(() => {
-    void load(symbol, rangeDays);
-  }, [symbol, rangeDays, load]);
+    void load(symbol, rangeDays, strategy);
+  }, [symbol, rangeDays, strategy, load]);
+
+  useEffect(() => {
+    fetchStrategyOptions()
+      .then(setStrategyOptions)
+      .catch(() => setStrategyOptions([]));
+  }, []);
+
+  const [screen, setScreen] = useState<StrategyScreen | null>(null);
+  const [screenLoading, setScreenLoading] = useState(false);
+  const [screenError, setScreenError] = useState<string | null>(null);
+
+  const runScreen = useCallback(async () => {
+    setScreenLoading(true);
+    setScreenError(null);
+    try {
+      setScreen(await fetchStrategyScreen(symbol, rangeDays));
+    } catch (caught) {
+      setScreen(null);
+      setScreenError(
+        caught instanceof ApiError ? caught.message : "Unexpected error screening strategies."
+      );
+    } finally {
+      setScreenLoading(false);
+    }
+  }, [symbol, rangeDays]);
+
+  // A screen result is specific to one symbol/range; clear it rather than show a
+  // stale comparison when either changes.
+  useEffect(() => {
+    setScreen(null);
+    setScreenError(null);
+  }, [symbol, rangeDays]);
 
   const metrics = backtest?.metrics;
   const totalReturn = metrics ? Number(metrics.total_return) : 0;
@@ -66,6 +109,27 @@ export function BacktestWorkspace() {
         <div className="mt-4 flex flex-col gap-4">
           <SymbolBar loading={loading} onSubmit={setSymbol} symbol={symbol} />
           <RangeSelector disabled={loading} onChange={setRangeDays} value={rangeDays} />
+          {strategyOptions.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-wide text-terminal-muted">Strategy</span>
+              {strategyOptions.map((option) => (
+                <button
+                  className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                    option.key === strategy
+                      ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
+                      : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+                  }`}
+                  disabled={loading}
+                  key={option.key}
+                  onClick={() => setStrategy(option.key)}
+                  title={option.description}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -83,12 +147,22 @@ export function BacktestWorkspace() {
                 <p className="text-xs uppercase tracking-[0.28em] text-terminal-muted">
                   Success rate (closed trades)
                 </p>
-                <p className="mt-1 font-mono text-4xl font-semibold text-terminal-accent">
-                  {formatPercent(metrics.success_rate)}
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="font-mono text-4xl font-semibold text-terminal-accent">
+                    {formatPercent(metrics.success_rate)}
+                  </p>
+                  {Number(metrics.success_rate) >= 0.8 ? (
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-300">
+                      80%+
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-1 text-xs text-terminal-muted">
                   {metrics.winning_trades}W / {metrics.losing_trades}L across {metrics.trade_count}{" "}
                   trades · {backtest.start.slice(0, 10)} → {backtest.end.slice(0, 10)}
+                  {metrics.trade_count < 10
+                    ? " · few closed trades — treat this rate as low-confidence"
+                    : ""}
                 </p>
               </div>
               <div className="text-right">
@@ -218,6 +292,14 @@ export function BacktestWorkspace() {
               </div>
             ) : null}
           </section>
+
+          <StrategyScreenerSection
+            error={screenError}
+            loading={screenLoading}
+            onRun={() => void runScreen()}
+            screen={screen}
+            symbol={symbol}
+          />
         </>
       ) : null}
 
@@ -225,6 +307,126 @@ export function BacktestWorkspace() {
         <EmptyState message="No backtest could be produced for this symbol." />
       ) : null}
     </div>
+  );
+}
+
+function StrategyScreenerSection({
+  symbol,
+  screen,
+  loading,
+  error,
+  onRun
+}: Readonly<{
+  symbol: string;
+  screen: StrategyScreen | null;
+  loading: boolean;
+  error: string | null;
+  onRun: () => void;
+}>) {
+  return (
+    <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold">Strategy screener</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-terminal-muted">
+            Backtests every strategy variant on {symbol} over the same history and ranks them by
+            real win rate. This does not target or force a number — some symbols/windows may have
+            zero variants clearing 80%, and that is reported honestly.
+          </p>
+        </div>
+        <button
+          className="rounded-lg border border-terminal-accent bg-terminal-accent/10 px-4 py-2 text-sm font-medium text-terminal-accent transition hover:bg-terminal-accent/20 disabled:opacity-50"
+          disabled={loading}
+          onClick={onRun}
+          type="button"
+        >
+          {loading ? "Screening…" : "Compare all strategies"}
+        </button>
+      </div>
+
+      {error ? (
+        <div className="mt-4">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
+      {loading ? (
+        <div className="mt-4">
+          <LoadingBlock label={`Backtesting every strategy on ${symbol}…`} />
+        </div>
+      ) : null}
+
+      {screen ? (
+        <>
+          <p className="mt-4 text-sm text-terminal-muted">
+            {screen.qualifying_count > 0
+              ? `${screen.qualifying_count} of ${screen.results.length} strategies clear ${formatPercent(screen.win_rate_threshold)} real win rate.`
+              : `No strategy cleared ${formatPercent(screen.win_rate_threshold)} real win rate on ${symbol} over this window — an honest result, not every symbol/window has one.`}
+          </p>
+          <div className="mt-4 overflow-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-terminal-muted">
+                <tr>
+                  <th className="py-2 pr-4">Strategy</th>
+                  <th className="py-2 pr-4 text-right">Win rate</th>
+                  <th className="py-2 pr-4 text-right">Trades</th>
+                  <th className="py-2 pr-4 text-right">Total return</th>
+                  <th className="py-2 pr-4 text-right">Max drawdown</th>
+                  <th className="py-2 text-right">Next</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {screen.results.map((item) => {
+                  const winRate = Number(item.win_rate);
+                  const totalReturn = Number(item.total_return);
+                  return (
+                    <tr className="border-t border-terminal-border/60" key={item.key}>
+                      <td className="py-2 pr-4">
+                        <span className="font-semibold" title={item.description}>
+                          {item.label}
+                        </span>
+                        {item.meets_threshold ? (
+                          <span className="ml-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
+                            80%+
+                          </span>
+                        ) : null}
+                      </td>
+                      <td
+                        className={`py-2 pr-4 text-right ${
+                          item.meets_threshold ? "text-emerald-300" : ""
+                        }`}
+                      >
+                        {formatPercent(item.win_rate)}
+                      </td>
+                      <td className="py-2 pr-4 text-right">
+                        {item.winning_trades}W / {item.losing_trades}L
+                        {item.trade_count < 10 ? " (low sample)" : ""}
+                      </td>
+                      <td
+                        className={`py-2 pr-4 text-right ${
+                          totalReturn >= 0 ? "text-emerald-300" : "text-terminal-danger"
+                        }`}
+                      >
+                        {formatSignedPercent(totalReturn)}
+                      </td>
+                      <td className="py-2 pr-4 text-right">{formatPercent(item.max_drawdown)}</td>
+                      <td className="py-2 text-right">
+                        {item.next_signal ? <ActionBadge action={item.next_signal.action} /> : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      {!loading && !error && !screen ? (
+        <p className="mt-4 text-sm text-terminal-muted">
+          Click &quot;Compare all strategies&quot; to backtest every variant on {symbol}.
+        </p>
+      ) : null}
+    </section>
   );
 }
 

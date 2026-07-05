@@ -15,13 +15,18 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict
 
 from backend.app.application.agents.registry import create_default_agents
-from backend.app.application.backtesting import BacktestResult, EventDrivenBacktester
+from backend.app.application.backtesting import BacktestResult
 from backend.app.application.decision_engine import (
     MasterDecisionEngine,
     MasterDecisionRequest,
 )
 from backend.app.application.market_data import MarketDataService
-from backend.app.application.strategy_backtest import StrategyBacktestService
+from backend.app.application.strategies import (
+    STRATEGIES,
+    build_strategy_backtest_service,
+    get_strategy,
+)
+from backend.app.application.strategy_screener import StrategyScreen, StrategyScreenerService
 from backend.app.core.config import Settings, get_settings
 from backend.app.domain.agents import AgentRequest, AgentVote
 from backend.app.domain.entities import BacktestRun, MasterDecision
@@ -270,6 +275,7 @@ class BacktestResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     symbol: str
+    strategy: str
     start: datetime
     end: datetime
     bar_count: int
@@ -281,6 +287,14 @@ class BacktestResponse(BaseModel):
     next_signal: MasterDecisionResponse | None
 
 
+class StrategyResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    description: str
+
+
 BacktestDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
 
 
@@ -290,22 +304,29 @@ def market_data_backtest(
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
     days: BacktestDays = 1825,
     capital: Annotated[Decimal, Query(gt=0)] = Decimal("10000"),
+    strategy: str = "master",
 ) -> BacktestResponse:
-    """Execute the AI strategy over real history and report the proven track record.
+    """Execute a named AI strategy over real history and report the proven track record.
 
     Every bar produces a master decision; the event-driven backtester fills those
     decisions on the next open. The response is the executed trade list, the equity
     curve, performance metrics (including the win/success rate), and the latest
-    decision, which is the forward-looking signal.
+    decision, which is the forward-looking signal. See /market-data/strategies for
+    the list of selectable strategy variants.
     """
+
+    try:
+        strategy_definition = get_strategy(strategy)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     request = _history_request(symbol, days)
     domain_bars = _fetch_history(service, request).bars
 
     try:
         run = BacktestRun(
-            id=uuid5(_INSTRUMENT_NAMESPACE, f"{request.symbol}:backtest"),
-            strategy_name="ai_master_decision",
+            id=uuid5(_INSTRUMENT_NAMESPACE, f"{request.symbol}:backtest:{strategy}"),
+            strategy_name=strategy_definition.key,
             instrument_id=request.instrument_id,
             start_date=domain_bars[0].timestamp.date(),
             end_date=domain_bars[-1].timestamp.date(),
@@ -314,20 +335,115 @@ def market_data_backtest(
             slippage_bps=Decimal("1"),
             benchmark_symbol=request.symbol,
         )
-        strategy = StrategyBacktestService(
-            agents=create_default_agents(),
-            engine=MasterDecisionEngine(),
-            backtester=EventDrivenBacktester(),
-        )
-        outcome = strategy.run(run, domain_bars)
+        strategy_service = build_strategy_backtest_service(strategy_definition)
+        outcome = strategy_service.run(run, domain_bars)
     except DomainValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return _backtest_response(request.symbol, outcome.result, outcome.latest_decision)
+    return _backtest_response(
+        request.symbol, strategy_definition.key, outcome.result, outcome.latest_decision
+    )
+
+
+@router.get("/strategies", response_model=tuple[StrategyResponse, ...])
+def list_strategies() -> tuple[StrategyResponse, ...]:
+    """List the selectable strategy variants available to the backtest endpoint."""
+
+    return tuple(
+        StrategyResponse(key=item.key, label=item.label, description=item.description)
+        for item in STRATEGIES
+    )
+
+
+class StrategyScreenResultResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    description: str
+    trade_count: int
+    winning_trades: int
+    losing_trades: int
+    win_rate: Decimal
+    total_return: Decimal
+    max_drawdown: Decimal
+    meets_threshold: bool
+    next_signal: MasterDecisionResponse | None
+
+
+class StrategyScreenResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    win_rate_threshold: Decimal
+    qualifying_count: int
+    results: tuple[StrategyScreenResultResponse, ...]
+
+
+WinRateThreshold = Annotated[Decimal, Query(ge=0, le=1)]
+
+
+@router.get("/{symbol}/strategy-screen", response_model=StrategyScreenResponse)
+def market_data_strategy_screen(
+    symbol: SymbolPath,
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    days: BacktestDays = 1825,
+    capital: Annotated[Decimal, Query(gt=0)] = Decimal("10000"),
+    win_rate_threshold: WinRateThreshold = Decimal("0.8"),
+) -> StrategyScreenResponse:
+    """Backtest every named strategy variant on one symbol and compare real win rates.
+
+    Each variant runs against the exact same historical bars. Nothing here targets
+    or manufactures a win rate — some symbols/windows may have zero strategies
+    clearing the threshold, and that is reported honestly via `qualifying_count`.
+    """
+
+    request = _history_request(symbol, days)
+    domain_bars = _fetch_history(service, request).bars
+
+    try:
+        screen = StrategyScreenerService().screen(
+            symbol=request.symbol,
+            instrument_id=request.instrument_id,
+            bars=domain_bars,
+            capital=capital,
+            win_rate_threshold=win_rate_threshold,
+        )
+    except DomainValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _screen_response(screen)
+
+
+def _screen_response(screen: StrategyScreen) -> StrategyScreenResponse:
+    return StrategyScreenResponse(
+        symbol=screen.symbol,
+        win_rate_threshold=screen.win_rate_threshold,
+        qualifying_count=screen.qualifying_count,
+        results=tuple(
+            StrategyScreenResultResponse(
+                key=item.key,
+                label=item.label,
+                description=item.description,
+                trade_count=item.trade_count,
+                winning_trades=item.winning_trades,
+                losing_trades=item.losing_trades,
+                win_rate=item.win_rate,
+                total_return=item.total_return,
+                max_drawdown=item.max_drawdown,
+                meets_threshold=item.meets_threshold,
+                next_signal=_decision_response(item.next_signal) if item.next_signal else None,
+            )
+            for item in screen.results
+        ),
+    )
 
 
 def _backtest_response(
-    symbol: str, result: BacktestResult, latest_decision: MasterDecision | None
+    symbol: str,
+    strategy_key: str,
+    result: BacktestResult,
+    latest_decision: MasterDecision | None,
 ) -> BacktestResponse:
     realized = [
         trade.trade.realized_pnl
@@ -343,6 +459,7 @@ def _backtest_response(
     )
     return BacktestResponse(
         symbol=symbol,
+        strategy=strategy_key,
         start=result.equity_curve[0].timestamp,
         end=result.equity_curve[-1].timestamp,
         bar_count=len(result.equity_curve),
