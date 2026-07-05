@@ -24,6 +24,7 @@ from backend.app.main import create_app  # noqa: E402
 BAR_COUNT = 400
 TWO_SYMBOLS = 2
 DEFAULT_STOCK_UNIVERSE_COUNT = 15
+EXPECTED_STRATEGY_COUNT = 5
 
 
 def _oscillating(index: int) -> Decimal:
@@ -109,3 +110,48 @@ def test_execute_portfolio_defaults_to_full_universe() -> None:
     payload = response.json()
     assert payload["symbol_count"] == DEFAULT_STOCK_UNIVERSE_COUNT
     assert payload["errors"] == []
+    assert payload["strategy"] == "master"
+
+
+def test_execute_portfolio_accepts_alternate_strategy() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/portfolio/execute",
+        params={"symbols": ["SPY"], "days": 600, "strategy": "trend_only"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["strategy"] == "trend_only"
+
+
+def test_execute_portfolio_rejects_unknown_strategy() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/portfolio/execute",
+        params={"symbols": ["SPY"], "days": 600, "strategy": "not-a-strategy"},
+    )
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_portfolio_strategy_screen_pools_win_rate_across_the_universe() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/portfolio/strategy-screen",
+        params={"symbols": ["SPY", "QQQ"], "days": 600},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["errors"] == []
+    assert len(payload["results"]) == EXPECTED_STRATEGY_COUNT
+    assert payload["best_key"] in {item["key"] for item in payload["results"]}
+    for item in payload["results"]:
+        assert item["symbols_evaluated"] == TWO_SYMBOLS
+        assert Decimal(item["win_rate"]) >= Decimal("0")
+    # Ranked descending by win rate.
+    win_rates = [Decimal(item["win_rate"]) for item in payload["results"]]
+    assert win_rates == sorted(win_rates, reverse=True)

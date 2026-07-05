@@ -16,8 +16,12 @@ import {
 import {
   ApiError,
   fetchPortfolioExecution,
+  fetchPortfolioStrategyScreen,
+  fetchStrategyOptions,
   type PortfolioExecution,
-  type PortfolioTrade
+  type PortfolioTrade,
+  type StrategyOption,
+  type UniverseStrategyScreen
 } from "@/lib/api";
 
 // Three years balances a meaningful trade history against the cost of running the
@@ -25,11 +29,14 @@ import {
 // It's also comfortably enough underlying data for the 1M-1Y display windows below.
 const FETCH_DAYS = 1095;
 const DEFAULT_CAPITAL = 10000;
+const DEFAULT_STRATEGY = "master";
 
 type PortfolioState = {
   data: PortfolioExecution | null;
   loading: boolean;
   error: string | null;
+  strategy: string;
+  setStrategy: (key: string) => void;
   reload: (force?: boolean) => void;
 };
 
@@ -37,13 +44,14 @@ function usePortfolio(days = FETCH_DAYS): PortfolioState {
   const [data, setData] = useState<PortfolioExecution | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [strategy, setStrategy] = useState(DEFAULT_STRATEGY);
 
   const load = useCallback(
-    async (force = false) => {
+    async (strategyKey: string, force = false) => {
       setLoading(true);
       setError(null);
       try {
-        setData(await fetchPortfolioExecution(DEFAULT_CAPITAL, days, { force }));
+        setData(await fetchPortfolioExecution(DEFAULT_CAPITAL, days, strategyKey, { force }));
       } catch (caught) {
         setData(null);
         setError(
@@ -57,10 +65,17 @@ function usePortfolio(days = FETCH_DAYS): PortfolioState {
   );
 
   useEffect(() => {
-    void load(false);
-  }, [load]);
+    void load(strategy, false);
+  }, [strategy, load]);
 
-  return { data, loading, error, reload: (force = true) => void load(force) };
+  return {
+    data,
+    loading,
+    error,
+    strategy,
+    setStrategy,
+    reload: (force = true) => void load(strategy, force)
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +306,32 @@ function WorkspaceHeader({
 
 export function PortfolioMonitor() {
   const { state, windowDays, setWindowDays, view } = usePortfolioWindow();
-  const { data, loading, error } = state;
+  const { data, loading, error, strategy, setStrategy } = state;
+
+  const [strategyOptions, setStrategyOptions] = useState<StrategyOption[]>([]);
+  useEffect(() => {
+    fetchStrategyOptions()
+      .then(setStrategyOptions)
+      .catch(() => setStrategyOptions([]));
+  }, []);
+
+  const [screen, setScreen] = useState<UniverseStrategyScreen | null>(null);
+  const [screenLoading, setScreenLoading] = useState(false);
+  const [screenError, setScreenError] = useState<string | null>(null);
+  const runScreen = useCallback(async () => {
+    setScreenLoading(true);
+    setScreenError(null);
+    try {
+      setScreen(await fetchPortfolioStrategyScreen());
+    } catch (caught) {
+      setScreen(null);
+      setScreenError(
+        caught instanceof ApiError ? caught.message : "Unexpected error screening strategies."
+      );
+    } finally {
+      setScreenLoading(false);
+    }
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -303,6 +343,30 @@ export function PortfolioMonitor() {
         title="Portfolio And Risk Monitor"
         windowDays={windowDays}
       />
+
+      {strategyOptions.length ? (
+        <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-4 shadow-2xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-terminal-muted">Strategy</span>
+            {strategyOptions.map((option) => (
+              <button
+                className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                  option.key === strategy
+                    ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
+                    : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+                }`}
+                disabled={loading}
+                key={option.key}
+                onClick={() => setStrategy(option.key)}
+                title={option.description}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {error ? <ErrorNote message={error} /> : null}
       {loading ? <LoadingBlock label="Executing the strategy across the universe…" /> : null}
@@ -397,6 +461,15 @@ export function PortfolioMonitor() {
           </section>
 
           <PlannedTrades data={data} />
+
+          <UniverseStrategyScreenerSection
+            currentStrategy={strategy}
+            error={screenError}
+            loading={screenLoading}
+            onApply={setStrategy}
+            onRun={() => void runScreen()}
+            screen={screen}
+          />
         </>
       ) : null}
 
@@ -404,6 +477,122 @@ export function PortfolioMonitor() {
         <EmptyState message="No portfolio execution could be produced." />
       ) : null}
     </div>
+  );
+}
+
+function UniverseStrategyScreenerSection({
+  currentStrategy,
+  screen,
+  loading,
+  error,
+  onRun,
+  onApply
+}: Readonly<{
+  currentStrategy: string;
+  screen: UniverseStrategyScreen | null;
+  loading: boolean;
+  error: string | null;
+  onRun: () => void;
+  onApply: (key: string) => void;
+}>) {
+  return (
+    <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold">Which strategy is actually winning?</h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-terminal-muted">
+            Backtests every strategy variant across the whole universe and pools every
+            symbol&apos;s real wins/losses into one honest win rate per variant — not
+            cherry-picked off a single
+            favorable symbol. This does not force or tune a number: some periods may have zero
+            variants clearing the threshold, and that is reported as-is.
+          </p>
+        </div>
+        <button
+          className="rounded-lg border border-terminal-accent bg-terminal-accent/10 px-4 py-2 text-sm font-medium text-terminal-accent transition hover:bg-terminal-accent/20 disabled:opacity-50"
+          disabled={loading}
+          onClick={onRun}
+          type="button"
+        >
+          {loading ? "Screening…" : "Compare all strategies"}
+        </button>
+      </div>
+
+      {error ? (
+        <div className="mt-4">
+          <ErrorNote message={error} />
+        </div>
+      ) : null}
+      {loading ? (
+        <div className="mt-4">
+          <LoadingBlock label="Backtesting every strategy across the universe…" />
+        </div>
+      ) : null}
+
+      {screen ? (
+        <>
+          <p className="mt-4 text-sm text-terminal-muted">
+            {screen.qualifying_count > 0
+              ? `${screen.qualifying_count} of ${screen.results.length} strategies clear ${formatPercent(screen.win_rate_threshold)} real, pooled win rate across ${screen.universe.length} symbols.`
+              : `No strategy cleared ${formatPercent(screen.win_rate_threshold)} pooled win rate across ${screen.universe.length} symbols — an honest result, not every period has one.`}
+          </p>
+          <div className="mt-4 overflow-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-terminal-muted">
+                <tr>
+                  <th className="py-2 pr-4">Strategy</th>
+                  <th className="py-2 pr-4 text-right">Pooled win rate</th>
+                  <th className="py-2 pr-4 text-right">Trades</th>
+                  <th className="py-2 pr-4 text-right">Symbols</th>
+                  <th className="py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {screen.results.map((item) => {
+                  const winRate = Number(item.win_rate);
+                  const isCurrent = item.key === currentStrategy;
+                  const isBest = item.key === screen.best_key;
+                  return (
+                    <tr className="border-t border-terminal-border/60" key={item.key}>
+                      <td className="py-2 pr-4">
+                        <span className="font-semibold">{item.label}</span>
+                        {isBest ? (
+                          <span className="ml-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase text-emerald-300">
+                            Best real result
+                          </span>
+                        ) : null}
+                      </td>
+                      <td
+                        className={`py-2 pr-4 text-right ${
+                          item.meets_threshold ? "text-emerald-300" : ""
+                        }`}
+                      >
+                        {formatPercent(winRate)}
+                      </td>
+                      <td className="py-2 pr-4 text-right">{item.trade_count}</td>
+                      <td className="py-2 pr-4 text-right">{item.symbols_evaluated}</td>
+                      <td className="py-2 text-right">
+                        {isCurrent ? (
+                          <span className="text-xs text-terminal-muted">in use</span>
+                        ) : (
+                          <button
+                            className="rounded-md border border-terminal-border bg-black/20 px-2 py-1 text-xs transition hover:border-terminal-accent hover:text-terminal-accent"
+                            onClick={() => onApply(item.key)}
+                            type="button"
+                          >
+                            Use this
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </section>
   );
 }
 

@@ -261,6 +261,7 @@ export type SleeveError = {
 
 export type PortfolioExecution = {
   generated_at: string;
+  strategy: string;
   initial_capital: string;
   total_equity: string;
   cash: string;
@@ -293,15 +294,16 @@ const portfolioCache = new Map<string, { at: number; value: Promise<PortfolioExe
 export function fetchPortfolioExecution(
   capital = 10000,
   days = 1825,
+  strategy = "master",
   { force = false }: { force?: boolean } = {}
 ): Promise<PortfolioExecution> {
-  const key = `${capital}:${days}`;
+  const key = `${capital}:${days}:${strategy}`;
   const cached = portfolioCache.get(key);
   if (!force && cached && Date.now() - cached.at < PORTFOLIO_CACHE_TTL_MS) {
     return cached.value;
   }
   const value = getJson<PortfolioExecution>(
-    `/portfolio/execute?capital=${capital}&days=${days}`,
+    `/portfolio/execute?capital=${capital}&days=${days}&strategy=${strategy}`,
     PORTFOLIO_TIMEOUT_MS
   ).catch((error: unknown) => {
     // Don't cache failures — a transient upstream error shouldn't stick.
@@ -310,6 +312,37 @@ export function fetchPortfolioExecution(
   });
   portfolioCache.set(key, { at: Date.now(), value });
   return value;
+}
+
+export type UniverseStrategyResult = {
+  key: string;
+  label: string;
+  description: string;
+  symbols_evaluated: number;
+  trade_count: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: string;
+  meets_threshold: boolean;
+};
+
+export type UniverseStrategyScreen = {
+  universe: string[];
+  win_rate_threshold: string;
+  qualifying_count: number;
+  best_key: string;
+  results: UniverseStrategyResult[];
+  errors: { symbol: string; detail: string }[];
+};
+
+export function fetchPortfolioStrategyScreen(
+  days = 1825,
+  winRateThreshold = 0.8
+): Promise<UniverseStrategyScreen> {
+  return getJson<UniverseStrategyScreen>(
+    `/portfolio/strategy-screen?days=${days}&win_rate_threshold=${winRateThreshold}`,
+    180_000
+  );
 }
 
 export type OptionContract = {

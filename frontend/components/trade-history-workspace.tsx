@@ -83,7 +83,7 @@ export function TradeHistoryWorkspace() {
     let stock: PortfolioExecution | null = null;
     let stockError: string | null = null;
     try {
-      stock = await fetchPortfolioExecution(STOCK_CAPITAL, STOCK_DAYS, { force });
+      stock = await fetchPortfolioExecution(STOCK_CAPITAL, STOCK_DAYS, "master", { force });
     } catch (caught) {
       stockError = caught instanceof ApiError ? caught.message : "Unexpected error.";
     }

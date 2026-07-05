@@ -20,11 +20,12 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from backend.app.application.agents.registry import create_default_agents
-from backend.app.application.backtesting import EventDrivenBacktester
-from backend.app.application.decision_engine import MasterDecisionEngine
 from backend.app.application.market_data import MarketDataService
-from backend.app.application.strategy_backtest import StrategyBacktestService
+from backend.app.application.strategies import (
+    STRATEGIES_BY_KEY,
+    StrategyDefinition,
+    build_strategy_backtest_service,
+)
 from backend.app.domain.entities import BacktestRun, MasterDecision, Trade
 from backend.app.domain.enums import OrderSide, OrderState
 from backend.app.domain.errors import DomainValidationError
@@ -101,32 +102,47 @@ class PortfolioExecutionService:
     max_workers: int = 12
 
     def run(
-        self, symbols: Sequence[str], capital: Decimal, days: int
+        self,
+        symbols: Sequence[str],
+        capital: Decimal,
+        days: int,
+        strategy_key: str = "master",
     ) -> PortfolioExecution:
         universe = tuple(dict.fromkeys(symbol.upper() for symbol in symbols))
         if not universe:
             raise DomainValidationError("portfolio execution requires at least one symbol")
+        try:
+            strategy = STRATEGIES_BY_KEY[strategy_key]
+        except KeyError as exc:
+            valid = ", ".join(STRATEGIES_BY_KEY)
+            raise DomainValidationError(
+                f"Unknown strategy '{strategy_key}'. Valid strategies: {valid}"
+            ) from exc
         per_symbol_capital = (capital / Decimal(len(universe))).quantize(Decimal("0.01"))
 
-        outcomes = self._run_universe(universe, per_symbol_capital, days)
+        outcomes = self._run_universe(universe, per_symbol_capital, days, strategy)
         sleeves = tuple(item for item in outcomes if isinstance(item, SleeveResult))
         errors = tuple(item for item in outcomes if isinstance(item, SleeveError))
         return self._aggregate(capital, sleeves, errors)
 
     def _run_universe(
-        self, universe: Sequence[str], per_symbol_capital: Decimal, days: int
+        self,
+        universe: Sequence[str],
+        per_symbol_capital: Decimal,
+        days: int,
+        strategy: StrategyDefinition,
     ) -> list[SleeveResult | SleeveError]:
         # Provider history is I/O bound, so fan the sleeves out across a small pool.
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             return list(
                 pool.map(
-                    lambda symbol: self._run_sleeve(symbol, per_symbol_capital, days),
+                    lambda symbol: self._run_sleeve(symbol, per_symbol_capital, days, strategy),
                     universe,
                 )
             )
 
     def _run_sleeve(
-        self, symbol: str, capital: Decimal, days: int
+        self, symbol: str, capital: Decimal, days: int, strategy: StrategyDefinition
     ) -> SleeveResult | SleeveError:
         try:
             request = self._history_request(symbol, days)
@@ -134,8 +150,8 @@ class PortfolioExecutionService:
             if not bars:
                 return SleeveError(symbol=symbol, detail="no bars returned by provider")
             run = BacktestRun(
-                id=uuid5(_INSTRUMENT_NAMESPACE, f"{symbol}:portfolio"),
-                strategy_name="ai_master_decision",
+                id=uuid5(_INSTRUMENT_NAMESPACE, f"{symbol}:portfolio:{strategy.key}"),
+                strategy_name=strategy.key,
                 instrument_id=request.instrument_id,
                 start_date=bars[0].timestamp.date(),
                 end_date=bars[-1].timestamp.date(),
@@ -144,12 +160,7 @@ class PortfolioExecutionService:
                 slippage_bps=Decimal("1"),
                 benchmark_symbol=symbol,
             )
-            strategy = StrategyBacktestService(
-                agents=create_default_agents(),
-                engine=MasterDecisionEngine(),
-                backtester=EventDrivenBacktester(),
-            )
-            outcome = strategy.run(run, bars)
+            outcome = build_strategy_backtest_service(strategy).run(run, bars)
         except DomainValidationError as exc:
             return SleeveError(symbol=symbol, detail=str(exc))
         except Exception as exc:  # noqa: BLE001 - one bad symbol must not sink the portfolio

@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
 from backend.app.api.v1.market_data import (
@@ -25,6 +25,11 @@ from backend.app.application.portfolio_execution import (
     PortfolioExecution,
     PortfolioExecutionService,
 )
+from backend.app.application.universe_strategy_screener import (
+    UniverseStrategyScreen,
+    UniverseStrategyScreenerService,
+)
+from backend.app.domain.errors import DomainValidationError
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -104,6 +109,7 @@ class PortfolioExecutionResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     generated_at: str
+    strategy: str
     initial_capital: Decimal
     total_equity: Decimal
     cash: Decimal
@@ -133,17 +139,28 @@ def execute_portfolio(
     symbols: Annotated[list[str] | None, Query()] = None,
     capital: Capital = Decimal("10000"),
     days: ExecuteDays = 1825,
+    strategy: str = "master",
 ) -> PortfolioExecutionResponse:
-    """Execute the AI strategy across the universe and aggregate the portfolio."""
+    """Execute the AI strategy across the universe and aggregate the portfolio.
+
+    See /portfolio/strategy-screen for each strategy variant's real, pooled
+    win rate across this universe — pick whichever variant is honestly best
+    and pass its key here. Defaults to "master" (every agent blended).
+    """
 
     universe = symbols if symbols else list(DEFAULT_UNIVERSE)
-    execution = PortfolioExecutionService(market_data=service).run(
-        symbols=universe, capital=capital, days=days
-    )
-    return _execution_response(execution)
+    try:
+        execution = PortfolioExecutionService(market_data=service).run(
+            symbols=universe, capital=capital, days=days, strategy_key=strategy
+        )
+    except DomainValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _execution_response(strategy, execution)
 
 
-def _execution_response(execution: PortfolioExecution) -> PortfolioExecutionResponse:
+def _execution_response(
+    strategy: str, execution: PortfolioExecution
+) -> PortfolioExecutionResponse:
     sleeves = tuple(
         SleeveResponse(
             symbol=sleeve.symbol,
@@ -198,6 +215,7 @@ def _execution_response(execution: PortfolioExecution) -> PortfolioExecutionResp
     )
     return PortfolioExecutionResponse(
         generated_at=datetime.now().astimezone().isoformat(),
+        strategy=strategy,
         initial_capital=execution.initial_capital,
         total_equity=execution.total_equity,
         cash=execution.cash,
@@ -220,5 +238,91 @@ def _execution_response(execution: PortfolioExecution) -> PortfolioExecutionResp
         errors=tuple(
             SleeveErrorResponse(symbol=error.symbol, detail=error.detail)
             for error in execution.errors
+        ),
+    )
+
+
+class UniverseStrategyResultResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    description: str
+    symbols_evaluated: int
+    trade_count: int
+    winning_trades: int
+    losing_trades: int
+    win_rate: Decimal
+    meets_threshold: bool
+
+
+class UniverseSymbolErrorResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    detail: str
+
+
+class UniverseStrategyScreenResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    universe: tuple[str, ...]
+    win_rate_threshold: Decimal
+    qualifying_count: int
+    best_key: str
+    results: tuple[UniverseStrategyResultResponse, ...]
+    errors: tuple[UniverseSymbolErrorResponse, ...]
+
+
+WinRateThreshold = Annotated[Decimal, Query(ge=0, le=1)]
+
+
+@router.get("/strategy-screen", response_model=UniverseStrategyScreenResponse)
+def portfolio_strategy_screen(
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    symbols: Annotated[list[str] | None, Query()] = None,
+    days: ExecuteDays = 1825,
+    win_rate_threshold: WinRateThreshold = Decimal("0.8"),
+) -> UniverseStrategyScreenResponse:
+    """Backtest every named strategy variant across the whole universe and pool
+    each one's real win rate — the honest way to answer "which strategy is
+    actually best", not cherry-picked off a single symbol. `best_key` is the
+    top-ranked variant with enough real trades to trust; "master" if none
+    qualifies. Pass `best_key` as `strategy` to /portfolio/execute to use it.
+    """
+
+    universe = symbols if symbols else list(DEFAULT_UNIVERSE)
+    try:
+        screen = UniverseStrategyScreenerService(market_data=service).screen(
+            symbols=universe, days=days, win_rate_threshold=win_rate_threshold
+        )
+    except DomainValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _screen_response(screen)
+
+
+def _screen_response(screen: UniverseStrategyScreen) -> UniverseStrategyScreenResponse:
+    return UniverseStrategyScreenResponse(
+        universe=screen.universe,
+        win_rate_threshold=screen.win_rate_threshold,
+        qualifying_count=screen.qualifying_count,
+        best_key=screen.best_key,
+        results=tuple(
+            UniverseStrategyResultResponse(
+                key=item.key,
+                label=item.label,
+                description=item.description,
+                symbols_evaluated=item.symbols_evaluated,
+                trade_count=item.trade_count,
+                winning_trades=item.winning_trades,
+                losing_trades=item.losing_trades,
+                win_rate=item.win_rate,
+                meets_threshold=item.meets_threshold,
+            )
+            for item in screen.results
+        ),
+        errors=tuple(
+            UniverseSymbolErrorResponse(symbol=error.symbol, detail=error.detail)
+            for error in screen.errors
         ),
     )
