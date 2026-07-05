@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from backend.app.api.v1.market_data import get_market_data_service  # noqa: E402
 from backend.app.main import create_app  # noqa: E402
 
-AGENT_COUNT = 12
+AGENT_COUNT = 13
 HISTORY_BAR_COUNT = 60
 SIGNAL_BAR_COUNT = 260
 BACKTEST_BAR_COUNT = 400
@@ -111,6 +111,7 @@ def test_signals_endpoint_runs_all_agents_and_master_decision() -> None:
     assert {vote["agent_name"] for vote in payload["votes"]} == {
         "trend",
         "momentum",
+        "short_term_guard",
         "volatility",
         "risk",
         "portfolio",

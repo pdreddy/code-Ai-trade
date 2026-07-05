@@ -8,6 +8,7 @@ from backend.app.application.agents.technical import (
     PortfolioAgent,
     RallyBasePatternAgent,
     RiskAgent,
+    ShortTermGuardAgent,
     SupplyDemandAgent,
     SupportResistanceAgent,
     TrendAgent,
@@ -23,6 +24,7 @@ def create_default_agents() -> tuple[TradingAgent, ...]:
     return (
         TrendAgent(),
         MomentumAgent(),
+        ShortTermGuardAgent(),
         VolatilityAgent(),
         RiskAgent(),
         PortfolioAgent(),

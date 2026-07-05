@@ -87,6 +87,31 @@ class MomentumAgent(BaseDeterministicAgent):
         return _vote(SignalAction.HOLD, score.copy_abs(), "21-session momentum is neutral")
 
 
+class ShortTermGuardAgent(BaseDeterministicAgent):
+    name = "short_term_guard"
+
+    def _evaluate(self, request: AgentRequest) -> AgentEvaluation:
+        closes = _closes(request.bars)
+        if len(closes) < 22:
+            return self._insufficient_history(22, len(closes))
+        one_month_return = closes[-1] / closes[-22] - DECIMAL_ONE
+        two_week_drawdown = _max_drawdown(closes[-10:])
+        if one_month_return < Decimal("0") or two_week_drawdown < Decimal("-0.03"):
+            pressure = max(one_month_return.copy_abs(), two_week_drawdown.copy_abs())
+            return _vote(
+                SignalAction.SELL,
+                max(Decimal("0.55"), _bounded(pressure * Decimal("8"))),
+                "1M guard is negative; de-risk until short-term performance recovers",
+            )
+        if one_month_return > Decimal("0.02"):
+            return _vote(
+                SignalAction.BUY,
+                _bounded(one_month_return * Decimal("8")),
+                "1M guard is positive with short-term performance tailwind",
+            )
+        return _vote(SignalAction.HOLD, Decimal("0.25"), "1M guard is flat")
+
+
 class VolatilityAgent(BaseDeterministicAgent):
     name = "volatility"
 

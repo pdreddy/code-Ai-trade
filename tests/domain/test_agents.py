@@ -12,6 +12,7 @@ from backend.app.domain.value_objects import Price
 EXPECTED_AGENT_NAMES = (
     "trend",
     "momentum",
+    "short_term_guard",
     "volatility",
     "risk",
     "portfolio",
@@ -74,9 +75,20 @@ def test_default_agents_return_standard_votes_without_future_data() -> None:
     assert all(vote.signal_bar_timestamp == request.signal_bar_timestamp for vote in votes)
 
 
+def test_short_term_guard_de_risks_negative_one_month_return() -> None:
+    request = _request(_bars(40, slope=Decimal("-0.2")))
+    guard_agent = create_default_agents()[2]
+
+    vote = guard_agent.evaluate(request)
+
+    assert vote.agent_name == "short_term_guard"
+    assert vote.action is SignalAction.SELL
+    assert "1M guard" in vote.reasons[0]
+
+
 def test_breakout_agent_detects_close_above_prior_range() -> None:
     request = _request(_bars(40, slope=Decimal("0.1"), final_breakout=True))
-    breakout_agent = create_default_agents()[6]
+    breakout_agent = create_default_agents()[7]
 
     vote = breakout_agent.evaluate(request)
 
@@ -113,7 +125,7 @@ def test_rally_base_pattern_agent_detects_rally_base_rally() -> None:
         for index, close in enumerate(pattern_closes)
     )
     request = _request(bars + pattern)
-    pattern_agent = create_default_agents()[7]
+    pattern_agent = create_default_agents()[8]
 
     vote = pattern_agent.evaluate(request)
 
@@ -150,7 +162,7 @@ def test_supply_demand_agent_detects_demand_retest() -> None:
         for index, close in enumerate(prices)
     )
     request = _request(bars + demand_sequence)
-    supply_demand_agent = create_default_agents()[8]
+    supply_demand_agent = create_default_agents()[9]
 
     vote = supply_demand_agent.evaluate(request)
 

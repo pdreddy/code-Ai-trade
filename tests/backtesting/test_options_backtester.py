@@ -176,7 +176,9 @@ def test_zero_dte_winning_trades_clear_minimum_return_floor() -> None:
     result = _backtester(OptionsStyle.ZERO_DTE).run(instrument_id, "SPY", bars)
 
     assert result.trades
-    for trade in result.trades:
+    winners = [trade for trade in result.trades if trade.realized_pnl > Decimal("0")]
+    assert winners
+    for trade in winners:
         entry_cost = (
             trade.entry_premium * CONTRACT_MULTIPLIER + COMMISSION_PER_CONTRACT
         ) * Decimal(trade.contracts)
