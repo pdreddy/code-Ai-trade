@@ -21,7 +21,9 @@ REGIME_WINDOW = 200
 TRAILING_STOP_FRACTION = Decimal("0.92")
 CAPITAL_DEPLOYMENT_FRACTION = Decimal("0.95")
 STOP_LOSS_FRACTION = Decimal("0.92")
-TAKE_PROFIT_FRACTION = Decimal("1.18")
+TAKE_PROFIT_FRACTION = Decimal("1.12")
+MIN_ENTRY_MOMENTUM = Decimal("0.015")
+MAX_ENTRY_EXTENSION = Decimal("1.12")
 LOOKBACK_DAYS = 365 * 5 + 2
 MIN_VOLATILITY_OBSERVATIONS = 2
 
@@ -319,7 +321,7 @@ class DailyResearchService:
         start_index = self._strategy_start_index(bars)
 
         for index in range(start_index, len(bars) - 1):
-            signal = self._signal(bars, index, quantity > 0, highest_close)
+            signal = self._signal(bars, index, quantity > 0, highest_close, entry_price)
             fill_bar = bars[index + 1]
             if signal == "BUY" and quantity == 0:
                 deployable_cash = cash * CAPITAL_DEPLOYMENT_FRACTION
@@ -628,7 +630,7 @@ class DailyResearchService:
         self, symbol: str, bars: list[ResearchBar], open_position: bool, starting_capital: Decimal
     ) -> NextDayCandidate:
         index = len(bars) - 1
-        signal = self._signal(bars, index, open_position, None)
+        signal = self._signal(bars, index, open_position, None, None)
         latest = bars[index]
         short = self._average_close(bars, index, SHORT_WINDOW)
         long = self._average_close(bars, index, self._regime_window(bars))
@@ -679,6 +681,7 @@ class DailyResearchService:
         index: int,
         open_position: bool,
         highest_close: Decimal | None,
+        entry_price: Decimal | None,
     ) -> str:
         latest = bars[index]
         short = self._average_close(bars, index, SHORT_WINDOW)
@@ -687,14 +690,23 @@ class DailyResearchService:
         regime = self._average_close(bars, index, self._regime_window(bars))
         momentum = latest.close / bars[index - SHORT_WINDOW].close - 1
         risk_on = latest.close > regime and short > trend
-        pullback_recovered = latest.close > short and momentum > Decimal("-0.02")
-        if not open_position and risk_on and pullback_recovered:
+        not_overextended = latest.close <= short * MAX_ENTRY_EXTENSION
+        pullback_recovered = latest.close > short and momentum >= MIN_ENTRY_MOMENTUM
+        if not open_position and risk_on and pullback_recovered and not_overextended:
             return "BUY"
         trailing_stop = (highest_close * TRAILING_STOP_FRACTION) if highest_close else None
         trend_break = latest.close < trend and momentum < 0
         stop_break = trailing_stop is not None and latest.close < trailing_stop
         regime_break = latest.close < regime and short < trend
-        if open_position and (stop_break or trend_break or regime_break):
+        entry_stop_break = (
+            entry_price is not None and latest.close <= entry_price * STOP_LOSS_FRACTION
+        )
+        profit_target_hit = (
+            entry_price is not None and latest.close >= entry_price * TAKE_PROFIT_FRACTION
+        )
+        if open_position and (
+            profit_target_hit or entry_stop_break or stop_break or trend_break or regime_break
+        ):
             return "SELL"
         return "HOLD"
 
