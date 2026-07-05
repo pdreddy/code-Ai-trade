@@ -1,4 +1,4 @@
-"""FastAPI application factory for the KOC3 Quant Platform."""
+"""FastAPI application factory for the AI Quant Platform."""
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -6,7 +6,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.api.v1.analytics import router as analytics_router
+from backend.app.api.v1.capabilities import router as capabilities_router
 from backend.app.api.v1.health import router as health_router
+from backend.app.api.v1.market_data import router as market_data_router
+from backend.app.api.v1.research import router as research_router
+from backend.app.api.v1.strategies import router as strategies_router
 from backend.app.core.config import Settings, get_settings
 
 
@@ -38,6 +43,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(capabilities_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(analytics_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(market_data_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(research_router, prefix=resolved_settings.api_v1_prefix)
+    app.include_router(strategies_router, prefix=resolved_settings.api_v1_prefix)
     return app
 
 

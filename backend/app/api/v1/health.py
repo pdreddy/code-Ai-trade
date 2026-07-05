@@ -21,6 +21,8 @@ class HealthResponse(BaseModel):
     environment: str
     demo_mode: bool
     market_data_provider: str
+    options_data_provider: str
+    news_data_provider: str
     timestamp_utc: datetime
 
 
@@ -34,5 +36,7 @@ def health(settings: Annotated[Settings, Depends(get_settings)]) -> HealthRespon
         environment=settings.environment,
         demo_mode=settings.demo_mode,
         market_data_provider=settings.market_data_provider,
+        options_data_provider=settings.options_data_provider,
+        news_data_provider=settings.news_data_provider,
         timestamp_utc=datetime.now(UTC),
     )

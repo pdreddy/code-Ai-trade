@@ -1,11 +1,11 @@
 {
-  "name": "koc3-quant-platform-frontend",
+  "name": "ai-quant-platform-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${PORT:-3000}",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },

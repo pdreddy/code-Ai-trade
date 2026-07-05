@@ -1,16 +1,18 @@
+name: ai-quant-platform
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: koc3
-      POSTGRES_USER: koc3
-      POSTGRES_PASSWORD: koc3
+      POSTGRES_DB: quant
+      POSTGRES_USER: quant
+      POSTGRES_PASSWORD: quant
     ports:
-      - "5432:5432"
+      - "${AI_QUANT_POSTGRES_PORT:-15432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U koc3 -d koc3"]
+      test: ["CMD-SHELL", "pg_isready -U quant -d quant"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -18,7 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${AI_QUANT_REDIS_PORT:-16379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -38,6 +40,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  market-snapshot:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: python scripts/generate_market_snapshot.py
+    profiles:
+      - tools
 
   frontend:
     build:

@@ -12,6 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["local", "test", "staging", "production"]
 MarketDataProvider = Literal["yahoo"]
+OptionsDataProvider = Literal["disabled", "databento", "tradier", "alpaca", "intrinio", "massive"]
+NewsDataProvider = Literal["disabled", "benzinga", "finnhub"]
 
 
 class Settings(BaseSettings):
@@ -20,19 +22,21 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "config/local.env"),
         env_file_encoding="utf-8",
-        env_prefix="KOC3_",
+        env_prefix="AI_QUANT_",
         case_sensitive=False,
         extra="ignore",
     )
 
-    app_name: str = "KOC3 Quant Platform"
+    app_name: str = "AI Quant Platform"
     environment: Environment = "local"
     api_v1_prefix: str = "/api/v1"
     cors_origins: tuple[str, ...] = ("http://localhost:3000",)
     demo_mode: bool = False
     market_data_provider: MarketDataProvider = "yahoo"
+    options_data_provider: OptionsDataProvider = "disabled"
+    news_data_provider: NewsDataProvider = "disabled"
     database_url: PostgresDsn = Field(
-        default="postgresql+psycopg://koc3:koc3@localhost:5432/koc3"
+        default="postgresql+psycopg://quant:quant@localhost:5432/quant"
     )
     redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
 
