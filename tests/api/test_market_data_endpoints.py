@@ -200,6 +200,24 @@ def test_list_strategies_returns_every_named_variant() -> None:
     }
 
 
+EXPECTED_ACCOUNT_PROFILE_COUNT = 3
+
+
+def test_list_account_profiles_returns_small_medium_large() -> None:
+    client = _client(bar_count=HISTORY_BAR_COUNT)
+
+    response = client.get("/api/v1/market-data/account-profiles")
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert len(payload) == EXPECTED_ACCOUNT_PROFILE_COUNT
+    by_key = {item["key"]: item for item in payload}
+    assert by_key.keys() == {"small", "medium", "large"}
+    assert by_key["small"]["capital"] == "500"
+    assert by_key["medium"]["capital"] == "10000"
+    assert by_key["large"]["capital"] == "100000"
+
+
 def test_strategy_screen_compares_every_variant_on_real_win_rate() -> None:
     client = _client(bar_count=BACKTEST_BAR_COUNT, price=_oscillating)
 

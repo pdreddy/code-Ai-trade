@@ -15,9 +15,11 @@ import {
 } from "@/components/research";
 import {
   ApiError,
+  fetchAccountProfiles,
   fetchPortfolioExecution,
   fetchPortfolioStrategyScreen,
   fetchStrategyOptions,
+  type AccountProfile,
   type PortfolioExecution,
   type PortfolioTrade,
   type StrategyOption,
@@ -37,6 +39,8 @@ type PortfolioState = {
   error: string | null;
   strategy: string;
   setStrategy: (key: string) => void;
+  capital: number;
+  setCapital: (value: number) => void;
   reload: (force?: boolean) => void;
 };
 
@@ -45,13 +49,14 @@ function usePortfolio(days = FETCH_DAYS): PortfolioState {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [strategy, setStrategy] = useState(DEFAULT_STRATEGY);
+  const [capital, setCapital] = useState(DEFAULT_CAPITAL);
 
   const load = useCallback(
-    async (strategyKey: string, force = false) => {
+    async (capitalAmount: number, strategyKey: string, force = false) => {
       setLoading(true);
       setError(null);
       try {
-        setData(await fetchPortfolioExecution(DEFAULT_CAPITAL, days, strategyKey, { force }));
+        setData(await fetchPortfolioExecution(capitalAmount, days, strategyKey, { force }));
       } catch (caught) {
         setData(null);
         setError(
@@ -65,8 +70,8 @@ function usePortfolio(days = FETCH_DAYS): PortfolioState {
   );
 
   useEffect(() => {
-    void load(strategy, false);
-  }, [strategy, load]);
+    void load(capital, strategy, false);
+  }, [capital, strategy, load]);
 
   return {
     data,
@@ -74,7 +79,9 @@ function usePortfolio(days = FETCH_DAYS): PortfolioState {
     error,
     strategy,
     setStrategy,
-    reload: (force = true) => void load(strategy, force)
+    capital,
+    setCapital,
+    reload: (force = true) => void load(capital, strategy, force)
   };
 }
 
@@ -306,13 +313,20 @@ function WorkspaceHeader({
 
 export function PortfolioMonitor() {
   const { state, windowDays, setWindowDays, view } = usePortfolioWindow();
-  const { data, loading, error, strategy, setStrategy } = state;
+  const { data, loading, error, strategy, setStrategy, capital, setCapital } = state;
 
   const [strategyOptions, setStrategyOptions] = useState<StrategyOption[]>([]);
   useEffect(() => {
     fetchStrategyOptions()
       .then(setStrategyOptions)
       .catch(() => setStrategyOptions([]));
+  }, []);
+
+  const [accountProfiles, setAccountProfiles] = useState<AccountProfile[]>([]);
+  useEffect(() => {
+    fetchAccountProfiles()
+      .then(setAccountProfiles)
+      .catch(() => setAccountProfiles([]));
   }, []);
 
   const [screen, setScreen] = useState<UniverseStrategyScreen | null>(null);
@@ -336,7 +350,7 @@ export function PortfolioMonitor() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        description="The AI master decision is executed on every symbol in the research universe from one shared $10,000 base (signal-on-close, fill-next-open). Total equity, cash, and invested reflect the current state; use Window to zoom the equity curve and win/loss stats into the trailing 1M-1Y."
+        description="The AI master decision is executed on every symbol in the research universe from one shared capital base (signal-on-close, fill-next-open) — pick an account size below to see how position sizing scales. Total equity, cash, and invested reflect the current state; use Window to zoom the equity curve and win/loss stats into the trailing 1M-1Y."
         eyebrow="Portfolio"
         onWindowChange={setWindowDays}
         state={state}
@@ -344,26 +358,58 @@ export function PortfolioMonitor() {
         windowDays={windowDays}
       />
 
-      {strategyOptions.length ? (
+      {strategyOptions.length || accountProfiles.length ? (
         <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-4 shadow-2xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs uppercase tracking-wide text-terminal-muted">Strategy</span>
-            {strategyOptions.map((option) => (
-              <button
-                className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
-                  option.key === strategy
-                    ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
-                    : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
-                }`}
-                disabled={loading}
-                key={option.key}
-                onClick={() => setStrategy(option.key)}
-                title={option.description}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex flex-col gap-3">
+            {accountProfiles.length ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-terminal-muted">
+                  Account size
+                </span>
+                {accountProfiles.map((profile) => {
+                  const profileCapital = Number(profile.capital);
+                  return (
+                    <button
+                      className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                        profileCapital === capital
+                          ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
+                          : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+                      }`}
+                      disabled={loading}
+                      key={profile.key}
+                      onClick={() => setCapital(profileCapital)}
+                      title={profile.description}
+                      type="button"
+                    >
+                      {profile.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {strategyOptions.length ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-terminal-muted">
+                  Strategy
+                </span>
+                {strategyOptions.map((option) => (
+                  <button
+                    className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                      option.key === strategy
+                        ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
+                        : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+                    }`}
+                    disabled={loading}
+                    key={option.key}
+                    onClick={() => setStrategy(option.key)}
+                    title={option.description}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}

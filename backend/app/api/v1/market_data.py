@@ -14,6 +14,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict
 
+from backend.app.application.account_profiles import ACCOUNT_PROFILES
 from backend.app.application.agents.registry import create_default_agents
 from backend.app.application.backtesting import BacktestResult
 from backend.app.application.decision_engine import (
@@ -352,6 +353,32 @@ def list_strategies() -> tuple[StrategyResponse, ...]:
     return tuple(
         StrategyResponse(key=item.key, label=item.label, description=item.description)
         for item in STRATEGIES
+    )
+
+
+class AccountProfileResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    capital: Decimal
+    description: str
+
+
+@router.get("/account-profiles", response_model=tuple[AccountProfileResponse, ...])
+def list_account_profiles() -> tuple[AccountProfileResponse, ...]:
+    """List the named account-size presets (small/medium/large).
+
+    These only change how much capital is deployed to /portfolio/execute or
+    /options-portfolio/execute — the same AI strategy and signals run either
+    way, just sized to the account.
+    """
+
+    return tuple(
+        AccountProfileResponse(
+            key=item.key, label=item.label, capital=item.capital, description=item.description
+        )
+        for item in ACCOUNT_PROFILES
     )
 
 

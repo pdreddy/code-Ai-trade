@@ -178,6 +178,20 @@ export function fetchStrategyOptions(): Promise<StrategyOption[]> {
   return strategyOptionsCache;
 }
 
+export type AccountProfile = {
+  key: string;
+  label: string;
+  capital: string;
+  description: string;
+};
+
+let accountProfilesCache: Promise<AccountProfile[]> | null = null;
+
+export function fetchAccountProfiles(): Promise<AccountProfile[]> {
+  accountProfilesCache ??= getJson<AccountProfile[]>("/market-data/account-profiles");
+  return accountProfilesCache;
+}
+
 export type StrategyScreenResult = {
   key: string;
   label: string;

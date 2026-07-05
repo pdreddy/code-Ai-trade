@@ -14,9 +14,11 @@ import {
 } from "@/components/research";
 import {
   ApiError,
+  fetchAccountProfiles,
   fetchOptionsPaperLedger,
   fetchOptionsPortfolioExecution,
   tickOptionsPaperLedger,
+  type AccountProfile,
   type LedgerSnapshot,
   type OptionsPortfolioExecution,
   type OptionsStyle
@@ -70,30 +72,43 @@ function StyleSelector({
 
 export function OptionsPortfolioWorkspace() {
   const [style, setStyle] = useState<OptionsStyle>("zero_dte");
+  const [capital, setCapital] = useState(DEFAULT_CAPITAL);
   const [data, setData] = useState<OptionsPortfolioExecution | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (targetStyle: OptionsStyle, force = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      setData(
-        await fetchOptionsPortfolioExecution(targetStyle, DEFAULT_CAPITAL, FETCH_DAYS, { force })
-      );
-    } catch (caught) {
-      setData(null);
-      setError(
-        caught instanceof ApiError ? caught.message : "Unexpected error running the options backtest."
-      );
-    } finally {
-      setLoading(false);
-    }
+  const [accountProfiles, setAccountProfiles] = useState<AccountProfile[]>([]);
+  useEffect(() => {
+    fetchAccountProfiles()
+      .then(setAccountProfiles)
+      .catch(() => setAccountProfiles([]));
   }, []);
 
+  const load = useCallback(
+    async (targetStyle: OptionsStyle, capitalAmount: number, force = false) => {
+      setLoading(true);
+      setError(null);
+      try {
+        setData(
+          await fetchOptionsPortfolioExecution(targetStyle, capitalAmount, FETCH_DAYS, { force })
+        );
+      } catch (caught) {
+        setData(null);
+        setError(
+          caught instanceof ApiError
+            ? caught.message
+            : "Unexpected error running the options backtest."
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
-    void load(style, false);
-  }, [style, load]);
+    void load(style, capital, false);
+  }, [style, capital, load]);
 
   const totalReturn = data ? Number(data.total_return) : 0;
   const totalPnl = data ? Number(data.total_pnl) : 0;
@@ -106,25 +121,51 @@ export function OptionsPortfolioWorkspace() {
             <p className="text-xs uppercase tracking-[0.32em] text-terminal-accent">
               Options Portfolio
             </p>
-            <h2 className="mt-3 text-2xl font-semibold">$10,000 0DTE / Weekly Options Track Record</h2>
+            <h2 className="mt-3 text-2xl font-semibold">0DTE / Weekly Options Track Record</h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-terminal-muted">
-              A dedicated $10,000 capital base, separate from the stock portfolio, deployed into
-              0DTE and weekly calls/puts across SPY, QQQ, IWM (true same-day expiries) and AAPL,
-              MSFT, NVDA, TSLA, AMD, META, GOOGL (weekly). The AI master decision picks direction —
-              calls on BUY, puts on SELL.
+              A dedicated capital base, separate from the stock portfolio, deployed into 0DTE and
+              weekly calls/puts across SPY, QQQ, IWM (true same-day expiries) and AAPL, MSFT, NVDA,
+              TSLA, AMD, META, GOOGL (weekly). The AI master decision picks direction — calls on
+              BUY, puts on SELL. Pick an account size to see position sizing scale accordingly.
             </p>
           </div>
           <button
             className="rounded-lg border border-terminal-border bg-black/20 px-4 py-2 text-sm transition hover:border-terminal-accent hover:text-terminal-accent disabled:opacity-50"
             disabled={loading}
-            onClick={() => void load(style, true)}
+            onClick={() => void load(style, capital, true)}
             type="button"
           >
             {loading ? "Executing…" : "Re-run"}
           </button>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-col gap-3">
           <StyleSelector disabled={loading} onChange={setStyle} value={style} />
+          {accountProfiles.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-wide text-terminal-muted">
+                Account size
+              </span>
+              {accountProfiles.map((profile) => {
+                const profileCapital = Number(profile.capital);
+                return (
+                  <button
+                    className={`rounded-md border px-3 py-1 text-xs transition disabled:opacity-50 ${
+                      profileCapital === capital
+                        ? "border-terminal-accent bg-terminal-accent/10 text-terminal-accent"
+                        : "border-terminal-border bg-black/20 text-terminal-muted hover:border-terminal-accent hover:text-terminal-accent"
+                    }`}
+                    disabled={loading}
+                    key={profile.key}
+                    onClick={() => setCapital(profileCapital)}
+                    title={profile.description}
+                    type="button"
+                  >
+                    {profile.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </section>
 
