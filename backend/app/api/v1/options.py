@@ -198,7 +198,10 @@ PRICING_NOTE = (
     "off real historical underlying closes (realized volatility as the IV proxy), "
     "since no historical options-quote data source is available. Underlying "
     "prices, strikes, and expiration mechanics are real; the premium is not a "
-    "quoted market price. See the live options chain above for real quotes."
+    "quoted market price. Positions exit early on a 50% stop-loss or a 100%+ "
+    "profit target, in addition to a signal flip or expiration — standard "
+    "options risk management, not just holding to expiry. See the live options "
+    "chain above for real quotes."
 )
 
 

@@ -54,6 +54,14 @@ CONTRACT_MULTIPLIER = Decimal("100")
 COMMISSION_PER_CONTRACT = Decimal("0.65")
 MIN_BAR_COUNT = 30
 
+# Long options decay toward zero via theta even when the signal hasn't flipped;
+# without an interim exit, a losing position rides to a near-total loss simply by
+# holding to expiration. A stop-loss/profit-target pair is standard real-world
+# options risk management — cut losers early, and lock in a solid gain instead of
+# letting it round-trip back to a loss before the signal reverses or it expires.
+STOP_LOSS_FRACTION = Decimal("0.5")  # exit once the mark has lost 50%+ of premium paid
+PROFIT_TARGET_MULTIPLE = Decimal("2")  # exit once the mark has doubled the premium paid
+
 
 class OptionsStyle(StrEnum):
     ZERO_DTE = "zero_dte"
@@ -160,6 +168,11 @@ class OptionsBacktester:
                 )
                 trades.append(closed)
                 position = None
+
+            if position is not None:
+                cash, position, risk_exit = self._check_risk_exit(cash, position, bar, closes)
+                if risk_exit is not None:
+                    trades.append(risk_exit)
 
             decision = self._decide(instrument_id, bars, index)
             last_decision = decision
@@ -303,6 +316,24 @@ class OptionsBacktester:
             contracts=contracts,
             entry_reason=decision.explanation,
         )
+
+    def _check_risk_exit(
+        self, cash: Decimal, position: _OpenPosition, bar: Bar, closes: list[Decimal]
+    ) -> tuple[Decimal, _OpenPosition | None, OptionsTrade | None]:
+        mark_value = self._mark_position(position, bar, closes)
+        entry_cost = position.entry_premium * CONTRACT_MULTIPLIER * Decimal(position.contracts)
+        if entry_cost <= Decimal("0"):
+            return cash, position, None
+        if mark_value <= entry_cost * (Decimal("1") - STOP_LOSS_FRACTION):
+            reason = f"stop-loss: premium down {STOP_LOSS_FRACTION * 100:.0f}%+"
+        elif mark_value >= entry_cost * PROFIT_TARGET_MULTIPLE:
+            reason = f"profit-target: premium up {(PROFIT_TARGET_MULTIPLE - 1) * 100:.0f}%+"
+        else:
+            return cash, position, None
+        new_cash, closed = self._close_position(
+            cash, position, bar, closes, exit_reason=reason, at_expiration=False
+        )
+        return new_cash, None, closed
 
     def _mark_position(
         self, position: _OpenPosition | None, bar: Bar, closes: list[Decimal]

@@ -89,6 +89,32 @@ def test_weekly_backtest_holds_across_multiple_days() -> None:
         assert trade.expiration.weekday() == FRIDAY_WEEKDAY or trade.expiration == trade.entry_at
 
 
+def test_weekly_backtest_cuts_losers_and_takes_profit_early() -> None:
+    # Long options decay via theta even without a signal flip; a stop-loss and
+    # profit-target give the backtester a real, standard interim exit instead of
+    # always riding a position to expiration or a flipped signal.
+    instrument_id = uuid4()
+    bars = _bars(instrument_id, BAR_COUNT)
+
+    result = _backtester(OptionsStyle.WEEKLY).run(instrument_id, "SPY", bars)
+
+    stop_losses = [trade for trade in result.trades if trade.exit_reason.startswith("stop-loss")]
+    profit_targets = [
+        trade for trade in result.trades if trade.exit_reason.startswith("profit-target")
+    ]
+    assert stop_losses, "expected at least one stop-loss exit over this window"
+    assert profit_targets, "expected at least one profit-target exit over this window"
+
+    for trade in stop_losses:
+        entry_cost = trade.entry_premium * trade.contracts * 100
+        assert trade.realized_pnl < Decimal("0")
+        # Loss should be roughly bounded near the 50% stop, not a near-total wipeout.
+        assert trade.realized_pnl > -entry_cost
+
+    for trade in profit_targets:
+        assert trade.realized_pnl > Decimal("0")
+
+
 def test_cash_conservation_never_exceeds_initial_capital_plus_gains() -> None:
     instrument_id = uuid4()
     bars = _bars(instrument_id, BAR_COUNT)
