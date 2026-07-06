@@ -39,6 +39,8 @@ def _decision(
     action: SignalAction,
     signal_at: datetime,
     explanation: str,
+    stop_loss: Price | None = None,
+    take_profit: Price | None = None,
 ) -> MasterDecision:
     return MasterDecision(
         id=uuid4(),
@@ -46,8 +48,8 @@ def _decision(
         action=action,
         confidence=Confidence(Decimal("0.75")),
         risk_score=RiskFraction(Decimal("0.25")),
-        stop_loss=None,
-        take_profit=None,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
         expected_r_multiple=Decimal("0"),
         explanation=explanation,
         agent_signal_ids=(uuid4(),),
@@ -101,6 +103,42 @@ def test_backtester_fills_signal_on_next_open_and_never_same_bar() -> None:
     assert result.metrics.exposure == Decimal("0.5")
     assert BacktestEventType.SIGNAL in {event.event_type for event in result.event_log}
     assert BacktestEventType.FILL in {event.event_type for event in result.event_log}
+
+
+def test_backtester_exits_early_on_stop_loss_without_an_opposite_signal() -> None:
+    # A losing position must not have to wait for the AI's own SELL signal —
+    # the stop-loss level the platform already computes on entry has to be
+    # enforced, or a loss can ride far past it.
+    instrument_id = uuid4()
+    bars = (
+        _bar(instrument_id, 1, "100", "101"),
+        _bar(instrument_id, 2, "102", "103"),
+        _bar(instrument_id, 3, "90", "91"),  # low breaches the $95 stop
+        _bar(instrument_id, 4, "92", "93"),
+    )
+    decisions = (
+        _decision(
+            instrument_id,
+            SignalAction.BUY,
+            bars[0].timestamp,
+            "buy after close",
+            stop_loss=Price(Decimal("95")),
+            take_profit=Price(Decimal("120")),
+        ),
+    )
+
+    result = EventDrivenBacktester().run(
+        BacktestRequest(run=_run(instrument_id), bars=bars, decisions=decisions)
+    )
+
+    assert result.metrics.trade_count == 1
+    trade = result.trades[0].trade
+    assert trade.entry_at == bars[1].timestamp
+    assert trade.exit_at == bars[2].timestamp
+    assert trade.exit_price == Price(Decimal("95"))
+    assert trade.reason == "stop-loss hit"
+    assert trade.realized_pnl is not None
+    assert trade.realized_pnl < Decimal("0")
 
 
 def test_backtester_rejects_decision_without_matching_signal_bar() -> None:

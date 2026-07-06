@@ -130,6 +130,8 @@ class _OpenPosition:
     entry_price: Price
     quantity: Quantity
     entry_reason: str
+    stop_loss: Price | None
+    take_profit: Price | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +171,25 @@ class EventDrivenBacktester:
                     event_log=event_log,
                 )
                 pending_order = None
+
+            # A position opened this same bar (next-open fill) cannot also exit
+            # this bar — the domain Trade model requires exit_at strictly after
+            # entry_at. The risk exit starts checking from the following bar.
+            if position is not None and position.entry_at != bar.timestamp:
+                cash, position, risk_order, risk_trade = self._check_risk_exit(
+                    cash=cash, position=position, bar=bar, run=request.run
+                )
+                if risk_order is not None:
+                    orders.append(risk_order)
+                if risk_trade is not None:
+                    trades.append(risk_trade)
+                    event_log.append(
+                        BacktestEvent(
+                            bar.timestamp,
+                            BacktestEventType.FILL,
+                            risk_trade.trade.reason or "risk exit",
+                        )
+                    )
 
             if position is not None:
                 exposed_bars += 1
@@ -271,6 +292,8 @@ class EventDrivenBacktester:
                 entry_price=fill_price,
                 quantity=Quantity(quantity),
                 entry_reason=pending_order.decision.explanation,
+                stop_loss=pending_order.decision.stop_loss,
+                take_profit=pending_order.decision.take_profit,
             )
 
         if pending_order.side is OrderSide.SELL and position is not None:
@@ -306,6 +329,60 @@ class EventDrivenBacktester:
             return cash, None
 
         return cash, position
+
+    def _check_risk_exit(
+        self,
+        cash: Decimal,
+        position: _OpenPosition,
+        bar: Bar,
+        run: BacktestRun,
+    ) -> tuple[Decimal, _OpenPosition | None, Order | None, BacktestTrade | None]:
+        """Close early if the bar's range breaches the entry decision's stop-loss
+        or take-profit level — otherwise a losing position only ever exits on the
+        AI's own next SELL signal, which can ride the loss far past the risk level
+        the platform already computes and displays for every entry."""
+
+        if position.stop_loss is not None and bar.low.value <= position.stop_loss.value:
+            exit_price, reason = position.stop_loss, "stop-loss hit"
+        elif position.take_profit is not None and bar.high.value >= position.take_profit.value:
+            exit_price, reason = position.take_profit, "take-profit hit"
+        else:
+            return cash, position, None, None
+
+        order_id = uuid4()
+        order = Order(
+            id=order_id,
+            instrument_id=run.instrument_id,
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            state=OrderState.FILLED,
+            quantity=position.quantity,
+            submitted_at=bar.timestamp,
+            time_in_force=TimeInForce.DAY,
+            filled_at=bar.timestamp,
+            average_fill_price=exit_price,
+        )
+        cash += position.quantity.value * exit_price.value - run.commission
+        trade = Trade(
+            id=position.trade_id,
+            instrument_id=run.instrument_id,
+            entry_order_id=position.entry_order_id,
+            exit_order_id=order_id,
+            entry_at=position.entry_at,
+            entry_price=position.entry_price,
+            quantity=position.quantity,
+            exit_at=bar.timestamp,
+            exit_price=exit_price,
+            realized_pnl=(
+                (exit_price.value - position.entry_price.value) * position.quantity.value
+            )
+            - (run.commission * Decimal("2")),
+            reason=reason,
+        )
+        backtest_trade = BacktestTrade(
+            trade=trade, entry_reason=position.entry_reason, exit_reason=reason
+        )
+        return cash, None, order, backtest_trade
 
 
 def _index_decisions(decisions: Sequence[MasterDecision]) -> Mapping[datetime, MasterDecision]:

@@ -102,9 +102,11 @@ export function BacktestWorkspace() {
         <h2 className="mt-3 text-2xl font-semibold">Proven System Track Record</h2>
         <p className="mt-2 max-w-4xl text-sm leading-6 text-terminal-muted">
           The AI master decision is generated for every historical bar and executed by the
-          event-driven backtester (signal-on-close, fill-next-open). Below is every trade the
-          system took, its win/success rate, risk-adjusted metrics, and the forward-looking
-          signal for the next session.
+          event-driven backtester (signal-on-close, fill-next-open). Every position also carries
+          the stop-loss/take-profit levels shown below and exits early if either is hit, rather
+          than only ever closing on the next opposite signal. Below is every trade the system
+          took, its win/success rate, risk-adjusted metrics, and the forward-looking signal for
+          the next session.
         </p>
         <div className="mt-4 flex flex-col gap-4">
           <SymbolBar loading={loading} onSubmit={setSymbol} symbol={symbol} />
