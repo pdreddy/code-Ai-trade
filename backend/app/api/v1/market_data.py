@@ -316,7 +316,7 @@ class StrategyResponse(BaseModel):
     description: str
 
 
-BacktestDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
+BacktestDays = Annotated[int, Query(ge=30, le=MAX_RANGE_DAYS)]
 
 
 @router.get("/{symbol}/backtest", response_model=BacktestResponse)

@@ -156,6 +156,16 @@ def test_backtest_endpoint_executes_trades_with_success_rate_and_next_signal() -
         assert trade["realized_pnl"] is not None
 
 
+def test_backtest_endpoint_accepts_six_month_ui_range() -> None:
+    client = _client(bar_count=BACKTEST_BAR_COUNT, price=_oscillating)
+
+    response = client.get("/api/v1/market-data/SPY/backtest", params={"days": 180})
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["symbol"] == "SPY"
+
+
 def test_backtest_endpoint_accepts_alternate_strategy_variants() -> None:
     client = _client(bar_count=BACKTEST_BAR_COUNT, price=_oscillating)
 

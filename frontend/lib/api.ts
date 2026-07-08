@@ -108,6 +108,36 @@ export type StrategyOption = {
 
 export class ApiError extends Error {}
 
+type ApiErrorBody = {
+  detail?: unknown;
+};
+
+function formatApiErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (item && typeof item === "object") {
+          const record = item as { msg?: unknown; loc?: unknown };
+          const location = Array.isArray(record.loc) ? record.loc.join(".") : null;
+          const message = typeof record.msg === "string" ? record.msg : JSON.stringify(item);
+          return location ? `${location}: ${message}` : message;
+        }
+        return String(item);
+      })
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    return JSON.stringify(detail);
+  }
+  return String(detail ?? "Unknown error");
+}
+
 // The backend proxies to a live market-data provider, so a request can legitimately
 // take several seconds; cap it so a stalled upstream surfaces as an error instead of
 // an indefinitely blank screen.
@@ -137,9 +167,9 @@ async function getJson<T>(path: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise
   if (!response.ok) {
     let detail = response.statusText;
     try {
-      const body = (await response.json()) as { detail?: string };
-      if (body.detail) {
-        detail = body.detail;
+      const body = (await response.json()) as ApiErrorBody;
+      if (body.detail !== undefined) {
+        detail = formatApiErrorDetail(body.detail);
       }
     } catch {
       // Non-JSON error body; fall back to the status text.
@@ -560,9 +590,9 @@ export async function tickOptionsPaperLedger(
     if (!response.ok) {
       let detail = response.statusText;
       try {
-        const body = (await response.json()) as { detail?: string };
-        if (body.detail) {
-          detail = body.detail;
+        const body = (await response.json()) as ApiErrorBody;
+        if (body.detail !== undefined) {
+          detail = formatApiErrorDetail(body.detail);
         }
       } catch {
         // Non-JSON error body; fall back to the status text.
