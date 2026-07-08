@@ -25,6 +25,7 @@ import {
 const DEFAULT_CAPITAL = 10000;
 const FETCH_DAYS = 1825;
 const TRADE_LIMIT = 200;
+const MIN_MODELED_WIN_RATE = 0.5;
 
 const STYLES: { label: string; value: OptionsStyle }[] = [
   { label: "0DTE", value: "zero_dte" },
@@ -79,7 +80,13 @@ export function OptionsPortfolioWorkspace() {
     setError(null);
     try {
       setData(
-        await fetchOptionsPortfolioExecution(targetStyle, DEFAULT_CAPITAL, FETCH_DAYS, 0, { force })
+        await fetchOptionsPortfolioExecution(
+          targetStyle,
+          DEFAULT_CAPITAL,
+          FETCH_DAYS,
+          MIN_MODELED_WIN_RATE,
+          { force }
+        )
       );
     } catch (caught) {
       setData(null);
@@ -159,10 +166,10 @@ export function OptionsPortfolioWorkspace() {
             in this run
           </h3>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-terminal-muted">
-            It has the highest modeled win rate after sorting by win rate, then return. If your rule
-            is a hard 75% success-rate minimum, do not force trades below that threshold — use this
-            as the watchlist candidate, compare Weekly versus 0DTE, and only promote sleeves that
-            clear the target in forward paper trading.
+            The table now excludes sleeves below a 50% modeled win rate by default. This card picks
+            the strongest remaining candidate by win rate, then return. If your rule is a hard 75%
+            success-rate minimum, do not force trades below that threshold — compare Weekly versus
+            0DTE and only promote sleeves that clear the target in forward paper trading.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat label="Best symbol" value={bestSleeve.symbol} />
@@ -183,6 +190,10 @@ export function OptionsPortfolioWorkspace() {
       {data ? (
         <>
           <section className="rounded-2xl border border-terminal-border bg-terminal-panel p-6 shadow-2xl">
+            <p className="mb-4 text-xs leading-5 text-terminal-muted">
+              Filtering out sleeves below {formatPercent(String(MIN_MODELED_WIN_RATE))} modeled win
+              rate so weak symbols do not dilute the portfolio. Rejected sleeves are listed above.
+            </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Stat label="Total equity" value={formatCurrency(data.total_equity)} />
               <Stat

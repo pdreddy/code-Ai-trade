@@ -144,7 +144,22 @@ def test_options_portfolio_execute_allocates_capital_across_universe() -> None:
     assert payload["errors"] == []
 
 
-def test_options_portfolio_execute_default_keeps_sleeves_for_analysis() -> None:
+def test_options_portfolio_execute_can_keep_all_sleeves_for_analysis() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/options-portfolio/execute",
+        params={"symbols": ["SPY", "QQQ"], "days": 1200, "min_win_rate": "0"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["symbol_count"] == TWO_SYMBOLS
+    assert len(payload["sleeves"]) == TWO_SYMBOLS
+    assert payload["errors"] == []
+
+
+def test_options_portfolio_execute_default_filters_sub_50_win_rate_sleeves() -> None:
     client = _client()
 
     response = client.get(
@@ -153,9 +168,7 @@ def test_options_portfolio_execute_default_keeps_sleeves_for_analysis() -> None:
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()
-    assert payload["symbol_count"] == TWO_SYMBOLS
-    assert len(payload["sleeves"]) == TWO_SYMBOLS
-    assert payload["errors"] == []
+    assert all(Decimal(sleeve["win_rate"]) >= Decimal("0.50") for sleeve in payload["sleeves"])
 
 
 def test_options_portfolio_execute_defaults_to_curated_universe() -> None:

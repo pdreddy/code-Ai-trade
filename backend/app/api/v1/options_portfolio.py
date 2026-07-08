@@ -169,7 +169,7 @@ def execute_options_portfolio(
     style: OptionsStyle = OptionsStyle.ZERO_DTE,
     capital: Capital = Decimal("10000"),
     days: ExecuteDays = 1825,
-    min_win_rate: MinWinRate = Decimal("0"),
+    min_win_rate: MinWinRate = Decimal("0.50"),
 ) -> OptionsPortfolioExecutionResponse:
     """Execute the modeled options strategy across the universe and aggregate it."""
 
