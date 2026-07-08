@@ -29,9 +29,15 @@ from backend.app.application.options_backtesting import (
 )
 from backend.app.application.options_research import (
     DEFAULT_MAX_DTE,
+    SIGNAL_HISTORY_DAYS,
     OptionsResearch,
     OptionsResearchService,
     PlannedOptionTrade,
+)
+from backend.app.application.options_strategy_engines import (
+    StrategyEngineContext,
+    StrategyEngineSignal,
+    run_strategy_engines,
 )
 from backend.app.application.options_strategy_playbook import (
     OPTIONS_STRATEGY_PLAYBOOK,
@@ -69,6 +75,21 @@ def get_options_provider(settings: Annotated[Settings, Depends(get_settings)]) -
     """Provide the configured options provider (overridable in tests)."""
 
     return create_options_provider(settings)
+
+
+class OptionsStrategyEngineSignalResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    engine: str
+    action: str
+    confidence: Decimal
+    rationale: str
+    legs: tuple[str, ...]
+    risk_reward: Decimal | None
+    max_loss: Decimal | None
+    target_return: Decimal | None
+    position_contracts: int
+    tradable: bool
 
 
 class OptionsStrategyPlaybookResponse(BaseModel):
@@ -298,6 +319,54 @@ PRICING_NOTE = (
     "prices, strikes, and expiration mechanics are real; the premium is not a "
     "quoted market price. See the live options chain above for real quotes."
 )
+
+
+@router.get(
+    "/{symbol}/strategy-engines",
+    response_model=tuple[OptionsStrategyEngineSignalResponse, ...],
+)
+def options_strategy_engines(
+    symbol: SymbolPath,
+    market_data: Annotated[MarketDataService, Depends(get_market_data_service)],
+    options: Annotated[OptionsProvider, Depends(get_options_provider)],
+    max_dte: MaxDte = DEFAULT_MAX_DTE,
+) -> tuple[OptionsStrategyEngineSignalResponse, ...]:
+    """Run deterministic strategy engines before AI ranking."""
+
+    today = datetime.now(UTC).date()
+    request = HistoricalMarketDataRequest(
+        instrument_id=instrument_id(symbol),
+        symbol=symbol.upper(),
+        start=today - timedelta(days=SIGNAL_HISTORY_DAYS),
+        end=today + timedelta(days=1),
+    )
+    try:
+        chain = options.fetch_option_chain(symbol, max_expiries=3)
+        bars = market_data.fetch_daily_history(request).bars
+    except OptionsProviderErrors as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    context = StrategyEngineContext(
+        symbol=chain.symbol,
+        underlying_price=chain.underlying_price,
+        contracts=tuple(c for c in chain.contracts if c.days_to_expiry <= max_dte),
+        bars=bars,
+    )
+    return tuple(_engine_signal_response(signal) for signal in run_strategy_engines(context))
+
+
+def _engine_signal_response(signal: StrategyEngineSignal) -> OptionsStrategyEngineSignalResponse:
+    return OptionsStrategyEngineSignalResponse(
+        engine=signal.engine,
+        action=signal.action.value,
+        confidence=signal.confidence,
+        rationale=signal.rationale,
+        legs=signal.legs,
+        risk_reward=signal.risk_reward,
+        max_loss=signal.max_loss,
+        target_return=signal.target_return,
+        position_contracts=signal.position_contracts,
+        tradable=signal.tradable,
+    )
 
 
 @router.get("/{symbol}/strategy-screen", response_model=OptionsStrategyScreenResponse)
