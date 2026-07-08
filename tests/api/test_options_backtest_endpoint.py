@@ -144,6 +144,20 @@ def test_options_portfolio_execute_allocates_capital_across_universe() -> None:
     assert payload["errors"] == []
 
 
+def test_options_portfolio_execute_default_keeps_sleeves_for_analysis() -> None:
+    client = _client()
+
+    response = client.get(
+        "/api/v1/options-portfolio/execute", params={"symbols": ["SPY", "QQQ"], "days": 1200}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    payload = response.json()
+    assert payload["symbol_count"] == TWO_SYMBOLS
+    assert len(payload["sleeves"]) == TWO_SYMBOLS
+    assert payload["errors"] == []
+
+
 def test_options_portfolio_execute_defaults_to_curated_universe() -> None:
     client = _client()
 

@@ -79,7 +79,7 @@ export function OptionsPortfolioWorkspace() {
     setError(null);
     try {
       setData(
-        await fetchOptionsPortfolioExecution(targetStyle, DEFAULT_CAPITAL, FETCH_DAYS, { force })
+        await fetchOptionsPortfolioExecution(targetStyle, DEFAULT_CAPITAL, FETCH_DAYS, 0, { force })
       );
     } catch (caught) {
       setData(null);
@@ -97,6 +97,12 @@ export function OptionsPortfolioWorkspace() {
 
   const totalReturn = data ? Number(data.total_return) : 0;
   const totalPnl = data ? Number(data.total_pnl) : 0;
+  const bestSleeve = data?.sleeves.length
+    ? [...data.sleeves].sort((left, right) => {
+        const winRateDiff = Number(right.win_rate) - Number(left.win_rate);
+        return winRateDiff || Number(right.return_pct) - Number(left.return_pct);
+      })[0]
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -137,10 +143,38 @@ export function OptionsPortfolioWorkspace() {
 
       {data && data.errors.length ? (
         <ErrorNote
-          message={`${data.errors.length} of ${data.errors.length + data.symbol_count} symbol(s) unavailable from the market-data provider: ${data.errors
+          message={`${data.errors.length} symbol(s) were not included in the modeled portfolio: ${data.errors
             .map((item) => `${item.symbol} (${item.detail})`)
             .join("; ")}`}
         />
+      ) : null}
+
+      {bestSleeve ? (
+        <section className="rounded-2xl border border-terminal-accent/40 bg-terminal-accent/5 p-6 shadow-2xl">
+          <p className="text-xs uppercase tracking-[0.28em] text-terminal-accent">
+            Better modeled option
+          </p>
+          <h3 className="mt-2 text-lg font-semibold">
+            {bestSleeve.symbol} is the strongest {style === "zero_dte" ? "0DTE" : "weekly"} sleeve
+            in this run
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-terminal-muted">
+            It has the highest modeled win rate after sorting by win rate, then return. If your rule
+            is a hard 75% success-rate minimum, do not force trades below that threshold — use this
+            as the watchlist candidate, compare Weekly versus 0DTE, and only promote sleeves that
+            clear the target in forward paper trading.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Stat label="Best symbol" value={bestSleeve.symbol} />
+            <Stat label="Win rate" value={formatPercent(bestSleeve.win_rate)} />
+            <Stat
+              label="Return"
+              value={formatSignedPercent(Number(bestSleeve.return_pct))}
+              tone={Number(bestSleeve.return_pct) >= 0 ? "up" : "down"}
+            />
+            <Stat label="Trades" value={formatNumber(bestSleeve.trade_count)} />
+          </div>
+        </section>
       ) : null}
 
       {error ? <ErrorNote message={error} /> : null}

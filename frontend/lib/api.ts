@@ -509,15 +509,21 @@ export function fetchOptionsPortfolioExecution(
   style: OptionsStyle = "weekly",
   capital = 10000,
   days = 1825,
-  { force = false }: { force?: boolean } = {}
+  minWinRateOrOptions: number | { force?: boolean } = 0,
+  options: { force?: boolean } = {}
 ): Promise<OptionsPortfolioExecution> {
-  const key = `${style}:${capital}:${days}`;
+  const minWinRate = typeof minWinRateOrOptions === "number" ? minWinRateOrOptions : 0;
+  const force =
+    typeof minWinRateOrOptions === "number"
+      ? options.force ?? false
+      : minWinRateOrOptions.force ?? false;
+  const key = `${style}:${capital}:${days}:${minWinRate}`;
   const cached = optionsPortfolioCache.get(key);
   if (!force && cached && Date.now() - cached.at < PORTFOLIO_CACHE_TTL_MS) {
     return cached.value;
   }
   const value = getJson<OptionsPortfolioExecution>(
-    `/options-portfolio/execute?style=${style}&capital=${capital}&days=${days}`,
+    `/options-portfolio/execute?style=${style}&capital=${capital}&days=${days}&min_win_rate=${minWinRate}`,
     PORTFOLIO_TIMEOUT_MS
   ).catch((error: unknown) => {
     optionsPortfolioCache.delete(key);
