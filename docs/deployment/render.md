@@ -34,6 +34,17 @@ logs, and production risk operations are independently reviewed.
    https://ai-quant-frontend.onrender.com
    ```
 
+## Required Secrets
+
+When Render creates the backend service, enter these secret values in the Blueprint prompt or backend Environment tab:
+
+- `AI_QUANT_MASSIVE_API_KEY`: REST API key for the live options snapshot provider.
+- `AI_QUANT_MASSIVE_S3_ACCESS_KEY_ID`: Massive Flat Files access key ID.
+- `AI_QUANT_MASSIVE_S3_SECRET_ACCESS_KEY`: Massive Flat Files secret access key.
+- `AI_QUANT_TRADIER_API_TOKEN`: optional fallback if you switch `AI_QUANT_OPTIONS_DATA_PROVIDER` back to `tradier`.
+
+Do not commit real keys to `render.yaml`; the Blueprint uses `sync: false` for secrets so Render stores them privately.
+
 ## Validate Locally Before Pushing
 
 If the Render CLI is installed and authenticated, validate the Blueprint:

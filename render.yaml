@@ -22,7 +22,19 @@ services:
       - key: AI_QUANT_MARKET_DATA_PROVIDER
         value: yahoo
       - key: AI_QUANT_OPTIONS_DATA_PROVIDER
-        value: yahoo
+        value: massive
+      - key: AI_QUANT_MASSIVE_API_KEY
+        sync: false
+      - key: AI_QUANT_MASSIVE_BASE_URL
+        value: https://api.massive.com
+      - key: AI_QUANT_MASSIVE_S3_ACCESS_KEY_ID
+        sync: false
+      - key: AI_QUANT_MASSIVE_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: AI_QUANT_MASSIVE_S3_ENDPOINT
+        value: https://files.massive.com
+      - key: AI_QUANT_MASSIVE_S3_BUCKET
+        value: flatfiles
       - key: AI_QUANT_TRADIER_API_TOKEN
         sync: false
       - key: AI_QUANT_TRADIER_BASE_URL
