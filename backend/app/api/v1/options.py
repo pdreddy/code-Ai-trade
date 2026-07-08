@@ -33,6 +33,10 @@ from backend.app.application.options_research import (
     OptionsResearchService,
     PlannedOptionTrade,
 )
+from backend.app.application.options_strategy_playbook import (
+    OPTIONS_STRATEGY_PLAYBOOK,
+    OptionsStrategyPlaybookItem,
+)
 from backend.app.application.options_strategy_screen import (
     DEFAULT_MIN_WIN_RATE,
     OptionsStrategyScreen,
@@ -65,6 +69,19 @@ def get_options_provider(settings: Annotated[Settings, Depends(get_settings)]) -
     """Provide the configured options provider (overridable in tests)."""
 
     return create_options_provider(settings)
+
+
+class OptionsStrategyPlaybookResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    objective: str
+    setup: tuple[str, ...]
+    required_data: tuple[str, ...]
+    risk_rules: tuple[str, ...]
+    preferred_symbols: tuple[str, ...]
+    scanner_ready: bool
 
 
 class OptionContractResponse(BaseModel):
@@ -122,6 +139,26 @@ class OptionsResearchResponse(BaseModel):
     planned_trades: tuple[PlannedOptionTradeResponse, ...]
     today_planned_trades: tuple[PlannedOptionTradeResponse, ...]
     future_planned_trades: tuple[PlannedOptionTradeResponse, ...]
+
+
+@router.get("/strategies", response_model=tuple[OptionsStrategyPlaybookResponse, ...])
+def options_strategy_playbook() -> tuple[OptionsStrategyPlaybookResponse, ...]:
+    """Return deterministic options strategies to implement before AI ranking."""
+
+    return tuple(_playbook_response(item) for item in OPTIONS_STRATEGY_PLAYBOOK)
+
+
+def _playbook_response(item: OptionsStrategyPlaybookItem) -> OptionsStrategyPlaybookResponse:
+    return OptionsStrategyPlaybookResponse(
+        key=item.key.value,
+        label=item.label,
+        objective=item.objective,
+        setup=item.setup,
+        required_data=item.required_data,
+        risk_rules=item.risk_rules,
+        preferred_symbols=item.preferred_symbols,
+        scanner_ready=item.scanner_ready,
+    )
 
 
 @router.get("/{symbol}", response_model=OptionsResearchResponse)

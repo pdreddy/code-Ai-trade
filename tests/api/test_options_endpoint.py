@@ -183,3 +183,24 @@ def test_options_endpoint_rejects_bad_symbol_length() -> None:
     response = client.get("/api/v1/options/TOOLONGSYMBOL")
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_options_strategy_playbook_lists_required_first_strategies() -> None:
+    client = _client()
+
+    response = client.get("/api/v1/options/strategies")
+
+    assert response.status_code == HTTPStatus.OK
+    keys = {item["key"] for item in response.json()}
+    assert keys == {
+        "unusual_options_flow",
+        "opening_range_breakout",
+        "gamma_squeeze",
+        "iv_crush",
+        "earnings_momentum",
+        "wheel",
+        "credit_spread_scanner",
+        "debit_spread_scanner",
+        "zero_dte_spx",
+        "spy_momentum",
+    }
