@@ -24,6 +24,7 @@ from backend.app.application.agents.registry import create_default_agents
 from backend.app.application.backtesting import EventDrivenBacktester
 from backend.app.application.decision_engine import MasterDecisionEngine
 from backend.app.application.market_data import MarketDataService
+from backend.app.application.strategies import get_strategy
 from backend.app.application.strategy_backtest import StrategyBacktestService
 from backend.app.domain.entities import BacktestRun, MasterDecision, Trade
 from backend.app.domain.enums import OrderSide, OrderState
@@ -100,9 +101,7 @@ class PortfolioExecutionService:
     market_data: MarketDataService
     max_workers: int = 12
 
-    def run(
-        self, symbols: Sequence[str], capital: Decimal, days: int
-    ) -> PortfolioExecution:
+    def run(self, symbols: Sequence[str], capital: Decimal, days: int) -> PortfolioExecution:
         universe = tuple(dict.fromkeys(symbol.upper() for symbol in symbols))
         if not universe:
             raise DomainValidationError("portfolio execution requires at least one symbol")
@@ -125,9 +124,7 @@ class PortfolioExecutionService:
                 )
             )
 
-    def _run_sleeve(
-        self, symbol: str, capital: Decimal, days: int
-    ) -> SleeveResult | SleeveError:
+    def _run_sleeve(self, symbol: str, capital: Decimal, days: int) -> SleeveResult | SleeveError:
         try:
             request = self._history_request(symbol, days)
             bars = self.market_data.fetch_daily_history(request).bars
@@ -144,10 +141,12 @@ class PortfolioExecutionService:
                 slippage_bps=Decimal("1"),
                 benchmark_symbol=symbol,
             )
+            portfolio_strategy = get_strategy("guarded_momentum")
             strategy = StrategyBacktestService(
                 agents=create_default_agents(),
-                engine=MasterDecisionEngine(),
+                engine=MasterDecisionEngine(policy=portfolio_strategy.policy),
                 backtester=EventDrivenBacktester(),
+                agent_names=portfolio_strategy.agent_names,
             )
             outcome = strategy.run(run, bars)
         except DomainValidationError as exc:
@@ -208,9 +207,7 @@ class PortfolioExecutionService:
         errors: Sequence[SleeveError],
     ) -> PortfolioExecution:
         total_equity = sum((sleeve.current_value for sleeve in sleeves), Decimal("0"))
-        invested = sum(
-            (sleeve.current_value for sleeve in sleeves if sleeve.holding), Decimal("0")
-        )
+        invested = sum((sleeve.current_value for sleeve in sleeves if sleeve.holding), Decimal("0"))
         cash = total_equity - invested
         deployed = sum((sleeve.allocated for sleeve in sleeves), Decimal("0"))
         total_pnl = total_equity - deployed

@@ -180,7 +180,7 @@ def test_backtest_endpoint_rejects_unknown_strategy() -> None:
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-EXPECTED_STRATEGY_COUNT = 5
+EXPECTED_STRATEGY_COUNT = 6
 
 
 def test_list_strategies_returns_every_named_variant() -> None:
@@ -197,6 +197,7 @@ def test_list_strategies_returns_every_named_variant() -> None:
         "trend_only",
         "breakout_only",
         "mean_reversion_only",
+        "guarded_momentum",
         "high_confidence",
     }
 

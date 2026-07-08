@@ -25,6 +25,9 @@ from backend.app.application.strategy_backtest import StrategyBacktestService
 HIGH_CONFIDENCE_POLICY = DecisionPolicy(
     buy_threshold=Decimal("0.5"), sell_threshold=Decimal("-0.5")
 )
+GUARDED_MOMENTUM_POLICY = DecisionPolicy(
+    buy_threshold=Decimal("0.35"), sell_threshold=Decimal("-0.20")
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +70,23 @@ STRATEGIES: tuple[StrategyDefinition, ...] = (
         description="Follows only the mean-reversion agent's vote; ignores every other signal.",
         agent_names=("mean_reversion",),
         policy=DecisionPolicy(),
+    ),
+    StrategyDefinition(
+        key="guarded_momentum",
+        label="Guarded Momentum",
+        description=(
+            "Trades only when trend/momentum/breakout and supply-demand structure align, "
+            "while the short-term guard can force faster de-risking in a weak 1M window."
+        ),
+        agent_names=(
+            "trend",
+            "momentum",
+            "short_term_guard",
+            "breakout",
+            "rally_base_pattern",
+            "supply_demand",
+        ),
+        policy=GUARDED_MOMENTUM_POLICY,
     ),
     StrategyDefinition(
         key="high_confidence",
