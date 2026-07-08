@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     tradier_base_url: str = "https://sandbox.tradier.com/v1"
     massive_api_key: str | None = None
     massive_base_url: str = "https://api.massive.com"
+    massive_s3_access_key_id: str | None = None
+    massive_s3_secret_access_key: str | None = None
+    massive_s3_endpoint: str = "https://files.massive.com"
+    massive_s3_bucket: str = "flatfiles"
     database_url: PostgresDsn = Field(
         default=PostgresDsn("postgresql+psycopg://quant:quant@localhost:5432/quant")
     )
