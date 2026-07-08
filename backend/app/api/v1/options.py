@@ -31,6 +31,7 @@ from backend.app.application.options_research import (
     DEFAULT_MAX_DTE,
     OptionsResearch,
     OptionsResearchService,
+    PlannedOptionTrade,
 )
 from backend.app.application.options_strategy_screen import (
     DEFAULT_MIN_WIN_RATE,
@@ -95,6 +96,15 @@ class PlannedOptionTradeResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     contract: OptionContractResponse
+    option_side: str
+    entry_price: Decimal | None
+    bid: Decimal | None
+    ask: Decimal | None
+    stop_loss_underlying: Decimal | None
+    take_profit_underlying: Decimal | None
+    target_return: Decimal | None
+    max_loss: Decimal | None
+    trade_timing: str
     rationale: str
 
 
@@ -110,6 +120,8 @@ class OptionsResearchResponse(BaseModel):
     signal: MasterDecisionResponse
     unusual_activity: tuple[UnusualContractResponse, ...]
     planned_trades: tuple[PlannedOptionTradeResponse, ...]
+    today_planned_trades: tuple[PlannedOptionTradeResponse, ...]
+    future_planned_trades: tuple[PlannedOptionTradeResponse, ...]
 
 
 @router.get("/{symbol}", response_model=OptionsResearchResponse)
@@ -144,6 +156,22 @@ def _contract_response(contract: OptionContract) -> OptionContractResponse:
         implied_volatility=contract.implied_volatility,
         in_the_money=contract.in_the_money,
         volume_oi_ratio=contract.volume_open_interest_ratio,
+    )
+
+
+def _planned_trade_response(item: PlannedOptionTrade) -> PlannedOptionTradeResponse:
+    return PlannedOptionTradeResponse(
+        contract=_contract_response(item.contract),
+        option_side=item.contract.option_type.value,
+        entry_price=item.entry_price,
+        bid=item.contract.bid,
+        ask=item.contract.ask,
+        stop_loss_underlying=item.stop_loss_underlying,
+        take_profit_underlying=item.take_profit_underlying,
+        target_return=item.target_return,
+        max_loss=item.max_loss,
+        trade_timing="today" if item.contract.days_to_expiry == 0 else "future",
+        rationale=item.rationale,
     )
 
 
@@ -373,6 +401,7 @@ def _backtest_response(result: OptionsBacktestResult) -> OptionsBacktestResponse
 
 
 def _research_response(research: OptionsResearch, max_dte: int) -> OptionsResearchResponse:
+    planned = tuple(_planned_trade_response(trade) for trade in research.planned_trades)
     return OptionsResearchResponse(
         symbol=research.symbol,
         underlying_price=research.underlying_price,
@@ -388,11 +417,11 @@ def _research_response(research: OptionsResearch, max_dte: int) -> OptionsResear
             )
             for item in research.unusual_activity
         ),
-        planned_trades=tuple(
-            PlannedOptionTradeResponse(
-                contract=_contract_response(item.contract),
-                rationale=item.rationale,
-            )
-            for item in research.planned_trades
+        planned_trades=planned,
+        today_planned_trades=tuple(
+            trade for trade in planned if trade.contract.days_to_expiry == 0
+        ),
+        future_planned_trades=tuple(
+            trade for trade in planned if trade.contract.days_to_expiry > 0
         ),
     )

@@ -125,7 +125,13 @@ def test_options_portfolio_execute_allocates_capital_across_universe() -> None:
 
     response = client.get(
         "/api/v1/options-portfolio/execute",
-        params={"symbols": ["SPY", "QQQ"], "capital": "10000", "days": 1200, "style": "weekly"},
+        params={
+            "symbols": ["SPY", "QQQ"],
+            "capital": "10000",
+            "days": 1200,
+            "style": "weekly",
+            "min_win_rate": "0",
+        },
     )
 
     assert response.status_code == HTTPStatus.OK
@@ -141,7 +147,9 @@ def test_options_portfolio_execute_allocates_capital_across_universe() -> None:
 def test_options_portfolio_execute_defaults_to_curated_universe() -> None:
     client = _client()
 
-    response = client.get("/api/v1/options-portfolio/execute", params={"days": 600})
+    response = client.get(
+        "/api/v1/options-portfolio/execute", params={"days": 600, "min_win_rate": "0"}
+    )
 
     assert response.status_code == HTTPStatus.OK
     payload = response.json()

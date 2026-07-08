@@ -12,7 +12,13 @@ import {
   formatNumber,
   formatPercent
 } from "@/components/research";
-import { ApiError, fetchOptionsResearch, type OptionContract, type OptionsResearch } from "@/lib/api";
+import {
+  ApiError,
+  fetchOptionsResearch,
+  type OptionContract,
+  type OptionsResearch,
+  type PlannedOptionTrade
+} from "@/lib/api";
 
 // True same-day (0DTE) expiries are only reliably listed on broad index ETFs;
 // most single stocks only list Friday weeklies. Default to SPY so 0DTE (the
@@ -132,39 +138,14 @@ export function OptionsWorkspace() {
                 <p className="text-xs uppercase tracking-[0.28em] text-terminal-accent">
                   Upcoming planned option trades
                 </p>
-                <h3 className="mt-2 text-lg font-semibold">AI-aligned {maxDte === 0 ? "0DTE" : "weekly"} plays</h3>
+                <h3 className="mt-2 text-lg font-semibold">Today and future trade plans</h3>
               </div>
               <p className="text-xs text-terminal-muted">{data.planned_trades.length} plan(s)</p>
             </div>
             {data.planned_trades.length ? (
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {data.planned_trades.map((plan) => (
-                  <div
-                    className="rounded-xl border border-terminal-border bg-black/20 p-4"
-                    key={plan.contract.contract_symbol}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="font-mono text-sm font-semibold">
-                        {formatCurrency(plan.contract.strike)}{" "}
-                        <span className="uppercase text-terminal-accent">
-                          {plan.contract.option_type}
-                        </span>
-                      </p>
-                      <span className="rounded-full border border-terminal-border px-2 py-0.5 font-mono text-xs text-terminal-muted">
-                        {plan.contract.days_to_expiry}DTE
-                      </span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-xs text-terminal-muted">
-                      <span>Last {plan.contract.last_price ? formatCurrency(plan.contract.last_price) : "—"}</span>
-                      <span className="text-right">Vol {formatNumber(plan.contract.volume)}</span>
-                      <span>OI {formatNumber(plan.contract.open_interest)}</span>
-                      <span className="text-right">
-                        IV {plan.contract.implied_volatility ? formatPercent(plan.contract.implied_volatility) : "—"}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-terminal-muted">{plan.rationale}</p>
-                  </div>
-                ))}
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <PlannedTradeGroup label="Today / 0DTE" plans={data.today_planned_trades} />
+                <PlannedTradeGroup label="Future / weekly" plans={data.future_planned_trades} />
               </div>
             ) : (
               <p className="mt-4 text-sm text-terminal-muted">
@@ -216,6 +197,51 @@ export function OptionsWorkspace() {
       {!loading && !error && !data ? (
         <EmptyState message="No option chain could be loaded for this symbol." />
       ) : null}
+    </div>
+  );
+}
+
+function PlannedTradeGroup({
+  label,
+  plans
+}: Readonly<{ label: string; plans: PlannedOptionTrade[] }>) {
+  return (
+    <div>
+      <p className="mb-2 text-xs uppercase tracking-wide text-terminal-muted">{label}</p>
+      {plans.length ? (
+        <div className="grid gap-3">
+          {plans.map((plan) => (
+            <div
+              className="rounded-xl border border-terminal-border bg-black/20 p-4"
+              key={plan.contract.contract_symbol}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-mono text-sm font-semibold">
+                  {plan.option_side.toUpperCase()} {formatCurrency(plan.contract.strike)} · {plan.contract.expiration}
+                </p>
+                <span className="rounded-full border border-terminal-border px-2 py-0.5 font-mono text-xs text-terminal-muted">
+                  {plan.contract.days_to_expiry}DTE
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-xs text-terminal-muted">
+                <span>Buy {plan.entry_price ? formatCurrency(plan.entry_price) : "—"}</span>
+                <span className="text-right">Bid/Ask {plan.bid ? formatCurrency(plan.bid) : "—"}/{plan.ask ? formatCurrency(plan.ask) : "—"}</span>
+                <span>Stop {plan.stop_loss_underlying ? formatCurrency(plan.stop_loss_underlying) : "—"}</span>
+                <span className="text-right">Target {plan.take_profit_underlying ? formatCurrency(plan.take_profit_underlying) : "—"}</span>
+                <span>Max loss {plan.max_loss ? formatCurrency(plan.max_loss) : "—"}/contract</span>
+                <span className="text-right">Target return {plan.target_return ? formatPercent(plan.target_return) : "—"}</span>
+                <span>Vol {formatNumber(plan.contract.volume)}</span>
+                <span className="text-right">OI {formatNumber(plan.contract.open_interest)}</span>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-terminal-muted">{plan.rationale}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl border border-terminal-border bg-black/20 p-4 text-sm text-terminal-muted">
+          No {label.toLowerCase()} plans passed the current signal/chain filters.
+        </p>
+      )}
     </div>
   );
 }

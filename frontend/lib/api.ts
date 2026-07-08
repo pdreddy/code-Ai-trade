@@ -335,6 +335,15 @@ export type UnusualContract = {
 
 export type PlannedOptionTrade = {
   contract: OptionContract;
+  option_side: "call" | "put";
+  entry_price: string | null;
+  bid: string | null;
+  ask: string | null;
+  stop_loss_underlying: string | null;
+  take_profit_underlying: string | null;
+  target_return: string | null;
+  max_loss: string | null;
+  trade_timing: "today" | "future";
   rationale: string;
 };
 
@@ -348,6 +357,8 @@ export type OptionsResearch = {
   signal: MasterDecision;
   unusual_activity: UnusualContract[];
   planned_trades: PlannedOptionTrade[];
+  today_planned_trades: PlannedOptionTrade[];
+  future_planned_trades: PlannedOptionTrade[];
 };
 
 export function fetchOptionsResearch(symbol: string, maxDte = 8): Promise<OptionsResearch> {

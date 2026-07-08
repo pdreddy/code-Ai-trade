@@ -58,6 +58,11 @@ class UnusualContract:
 @dataclass(frozen=True, slots=True)
 class PlannedOptionTrade:
     contract: OptionContract
+    entry_price: Decimal | None
+    stop_loss_underlying: Decimal | None
+    take_profit_underlying: Decimal | None
+    target_return: Decimal | None
+    max_loss: Decimal | None
     rationale: str
 
 
@@ -173,9 +178,7 @@ def _rank_unusual(contracts: tuple[OptionContract, ...]) -> tuple[UnusualContrac
         for contract in contracts
         if contract.volume >= MIN_UNUSUAL_VOLUME
     ]
-    candidates.sort(
-        key=lambda item: (item.volume_oi_ratio, item.contract.volume), reverse=True
-    )
+    candidates.sort(key=lambda item: (item.volume_oi_ratio, item.contract.volume), reverse=True)
     return tuple(candidates[:12])
 
 
@@ -209,6 +212,28 @@ def _breakout_signal(votes: tuple[AgentVote, ...]) -> BreakoutSignal | None:
     )
 
 
+def _entry_price(contract: OptionContract) -> Decimal | None:
+    if (
+        contract.ask is not None
+        and contract.bid is not None
+        and contract.ask > 0
+        and contract.bid > 0
+    ):
+        return ((contract.ask + contract.bid) / Decimal("2")).quantize(Decimal("0.01"))
+    return contract.last_price
+
+
+def _target_return(contract: OptionContract, target_underlying: Decimal | None) -> Decimal | None:
+    entry = _entry_price(contract)
+    if entry is None or entry <= Decimal("0") or target_underlying is None:
+        return None
+    if contract.option_type is OptionType.CALL:
+        target_premium = max(target_underlying - contract.strike, Decimal("0"))
+    else:
+        target_premium = max(contract.strike - target_underlying, Decimal("0"))
+    return (target_premium / entry - Decimal("1")).quantize(Decimal("0.01"))
+
+
 def _plan_trades(
     contracts: tuple[OptionContract, ...],
     underlying_price: Decimal,
@@ -235,6 +260,13 @@ def _plan_trades(
     return tuple(
         PlannedOptionTrade(
             contract=contract,
+            entry_price=_entry_price(contract),
+            stop_loss_underlying=decision.stop_loss.value if decision.stop_loss else None,
+            take_profit_underlying=decision.take_profit.value if decision.take_profit else None,
+            target_return=_target_return(
+                contract, decision.take_profit.value if decision.take_profit else None
+            ),
+            max_loss=_entry_price(contract),
             rationale=(
                 f"AI master decision is {decision.action.value.upper()} "
                 f"({(decision.confidence.value * 100):.0f}% confidence) — {direction} "

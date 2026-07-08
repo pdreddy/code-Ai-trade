@@ -99,6 +99,7 @@ class OptionsPortfolioExecutionService:
         capital: Decimal,
         days: int,
         style: OptionsStyle,
+        min_win_rate: Decimal = Decimal("0"),
     ) -> OptionsPortfolioExecution:
         universe = tuple(dict.fromkeys(symbol.upper() for symbol in symbols))
         if not universe:
@@ -113,9 +114,18 @@ class OptionsPortfolioExecutionService:
                 )
             )
 
-        sleeves = tuple(item for item in outcomes if isinstance(item, OptionsSleeveResult))
-        errors = tuple(item for item in outcomes if isinstance(item, OptionsSleeveError))
-        return self._aggregate(style, capital, sleeves, errors)
+        all_sleeves = tuple(item for item in outcomes if isinstance(item, OptionsSleeveResult))
+        filtered = tuple(sleeve for sleeve in all_sleeves if sleeve.win_rate >= min_win_rate)
+        rejected = tuple(
+            OptionsSleeveError(
+                symbol=sleeve.symbol,
+                detail=f"win rate {sleeve.win_rate:.1%} below required {min_win_rate:.1%}",
+            )
+            for sleeve in all_sleeves
+            if sleeve.win_rate < min_win_rate
+        )
+        errors = tuple(item for item in outcomes if isinstance(item, OptionsSleeveError)) + rejected
+        return self._aggregate(style, capital, filtered, errors)
 
     def _run_sleeve(
         self, symbol: str, capital: Decimal, days: int, style: OptionsStyle
@@ -147,9 +157,7 @@ class OptionsPortfolioExecutionService:
             losing_trades=result.metrics.losing_trades,
             win_rate=result.metrics.win_rate,
             next_signal=result.next_signal,
-            trades=tuple(
-                OptionsSleeveTrade(symbol=symbol, trade=trade) for trade in result.trades
-            ),
+            trades=tuple(OptionsSleeveTrade(symbol=symbol, trade=trade) for trade in result.trades),
             equity_by_day=tuple((point.on, point.equity) for point in result.equity_curve),
         )
 

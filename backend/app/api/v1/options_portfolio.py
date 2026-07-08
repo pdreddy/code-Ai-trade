@@ -40,13 +40,23 @@ router = APIRouter(prefix="/options-portfolio", tags=["options-portfolio"])
 # universe blends both so the 0DTE style has real-world grounding and the
 # weekly style covers a wider, still highly-optioned slice of single names.
 DEFAULT_UNIVERSE = (
-    "SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "TSLA", "AMD", "META", "GOOGL",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "TSLA",
+    "AMD",
+    "META",
+    "GOOGL",
 )
 MAX_RANGE_DAYS = 3660
 LEDGER_CAPITAL = Decimal("10000")
 
 ExecuteDays = Annotated[int, Query(ge=210, le=MAX_RANGE_DAYS)]
 Capital = Annotated[Decimal, Query(gt=0)]
+MinWinRate = Annotated[Decimal, Query(ge=0, le=1)]
 
 LEDGER_NOTE = (
     "Live paper ledger: positions are opened and marked at real quoted prices "
@@ -159,12 +169,13 @@ def execute_options_portfolio(
     style: OptionsStyle = OptionsStyle.ZERO_DTE,
     capital: Capital = Decimal("10000"),
     days: ExecuteDays = 1825,
+    min_win_rate: MinWinRate = Decimal("0.75"),
 ) -> OptionsPortfolioExecutionResponse:
     """Execute the modeled options strategy across the universe and aggregate it."""
 
     universe = symbols if symbols else list(DEFAULT_UNIVERSE)
     execution = OptionsPortfolioExecutionService(market_data=service).run(
-        symbols=universe, capital=capital, days=days, style=style
+        symbols=universe, capital=capital, days=days, style=style, min_win_rate=min_win_rate
     )
     return _execution_response(execution)
 
