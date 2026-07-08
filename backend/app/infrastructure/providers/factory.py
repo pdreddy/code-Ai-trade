@@ -4,6 +4,7 @@ from typing import Protocol
 
 from backend.app.domain.options import OptionsProvider
 from backend.app.domain.providers import MarketDataProvider
+from backend.app.infrastructure.providers.massive_options import MassiveOptionsProvider
 from backend.app.infrastructure.providers.tradier_options import TradierOptionsProvider
 from backend.app.infrastructure.providers.yahoo import YahooFinanceProvider
 from backend.app.infrastructure.providers.yahoo_options import YahooOptionsProvider
@@ -36,6 +37,12 @@ class OptionsProviderSettings(Protocol):
     @property
     def tradier_base_url(self) -> str: ...
 
+    @property
+    def massive_api_key(self) -> str | None: ...
+
+    @property
+    def massive_base_url(self) -> str: ...
+
 
 def create_options_provider(settings: OptionsProviderSettings) -> OptionsProvider:
     """Create the configured options-data provider adapter.
@@ -57,5 +64,13 @@ def create_options_provider(settings: OptionsProviderSettings) -> OptionsProvide
             )
         return TradierOptionsProvider(
             api_token=settings.tradier_api_token, base_url=settings.tradier_base_url
+        )
+    if settings.options_data_provider == "massive":
+        if not settings.massive_api_key:
+            raise ValueError(
+                "AI_QUANT_OPTIONS_DATA_PROVIDER=massive requires AI_QUANT_MASSIVE_API_KEY"
+            )
+        return MassiveOptionsProvider(
+            api_key=settings.massive_api_key, base_url=settings.massive_base_url
         )
     raise ValueError(f"Unsupported options data provider: {settings.options_data_provider}")

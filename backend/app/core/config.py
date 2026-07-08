@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["local", "test", "staging", "production"]
 MarketDataProvider = Literal["yahoo"]
-OptionsDataProvider = Literal["yahoo", "tradier"]
+OptionsDataProvider = Literal["yahoo", "tradier", "massive"]
 
 
 class Settings(BaseSettings):
@@ -34,11 +34,13 @@ class Settings(BaseSettings):
     market_data_provider: MarketDataProvider = "yahoo"
     market_data_cache_ttl_seconds: int = Field(default=60, ge=0, le=3600)
     # Yahoo's undocumented options endpoint blocks server/datacenter IPs far more
-    # aggressively than its chart endpoint, so a real alternative (Tradier's free
-    # developer sandbox) is available behind the same OptionsProvider contract.
+    # aggressively than its chart endpoint, so real alternatives (Tradier and
+    # Massive) are available behind the same OptionsProvider contract.
     options_data_provider: OptionsDataProvider = "yahoo"
     tradier_api_token: str | None = None
     tradier_base_url: str = "https://sandbox.tradier.com/v1"
+    massive_api_key: str | None = None
+    massive_base_url: str = "https://api.massive.com"
     database_url: PostgresDsn = Field(
         default=PostgresDsn("postgresql+psycopg://quant:quant@localhost:5432/quant")
     )
